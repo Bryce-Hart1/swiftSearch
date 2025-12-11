@@ -1,7 +1,8 @@
-#include<classes.cpp>
+#include"tokenize.h"
 #include<mutex>
-
-
+#include<filesystem>
+#include<vector>
+#include<iostream>
 
 /**
  * @param str string to convert to lowercase
@@ -22,11 +23,6 @@ std::string toLowerCase(std::string str){
 
 
 
-
-
-
-
-
 /**
  * @brief takes in first argument from command line
  * @example #sort, -sort, 
@@ -37,13 +33,18 @@ int tokenOne(std::string token){
     }
     token = toLowerCase(token);
     
-    if(token == "#sortedList"){
-
-    }else if(token == "#-sortedList"){
-
-    }else if(token == "#listNumbers"){
-        
-
+    if(token == "#sortedlist"){
+        return 1;
+    }else if(token == "#-sortedlist"){
+        return 2;
+    }else if(token == "#listnumbers"){
+        return 3;
+    }else if(token == "#listwords"){
+        return 4;
+    }else if(token == "#findcharacterfrequency"){
+        return 5;
+    }else if(token == "#findwordfrequency"){
+        return 6;
     }else{
         return -1;
     }
@@ -51,6 +52,11 @@ int tokenOne(std::string token){
 }
 
 
+int tokenTwo(std::string token){
+    if(!std::filesystem::exists(token)){
+        std::cerr << "File path is not valid";
+    }
+    
 
 
 
@@ -60,9 +66,7 @@ int tokenOne(std::string token){
 
 
 
-
-
-
+}
 
 
 
@@ -105,7 +109,22 @@ int tokenOne(std::string token){
  * 
  */
 
-void tokenMain(int count, char* vector[]){
+void tokenMain(int count, char* argArr[]){
+    std::vector<std::string> tokens;
+    std::string temp;
+    for(int i = 0; i < count; i++){
+        temp = argArr[i];
+        tokens.push_back(temp);
+    }
+
+    if(tokenOne(tokens[0]) == -1){
+        std::cerr << "command invalid at: " << tokens[0] << "\n";
+    }
+    if(tokenTwo(tokens[1]) == -1){
+
+
+    }
+    
 
 }
 

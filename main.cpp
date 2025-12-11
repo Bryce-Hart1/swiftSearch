@@ -1,5 +1,8 @@
-#include<parse.cpp>
-
+#include"parse.h"
+#include"tokenize.h"
+#include"classes.h"
+#include<iostream>
+#include<unistd.h>
 
 /*
 Possible operations:
@@ -41,10 +44,19 @@ void printInfo(){
     cout << " #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)" << endl;
     cout << "#listNumbers - takes all numbers and sorts them into a file in the order they appear" << endl;
     cout << "#listWords - takes all the words in the file and displays them in the order they appear." << endl;
-    cout << "#findFreq - finds the frequency of all values" << endl;
+    cout << "#findCharacterFrequency - finds the frequency of all values" << endl;
     cout << "findWordFreq - finds the frequency of all words in the list" << endl;
 
 }
+
+
+
+
+
+
+
+
+
 
 
 int main(int argc, char *argv[]){
@@ -52,7 +64,11 @@ int main(int argc, char *argv[]){
     char user; 
     const char userEntersCommand = 'c';
     const char userRequestsInfo = 'i';
-    tokenMain(argc, argv);    
+    string rootname;
+    string path;
+
+    FileTreeNode root(rootname, path, true);
+    tokenMain(argc, argv);  
 
 
     //if user does not understand to enter on commandLine, we need then to have a valid command

@@ -25,7 +25,6 @@ struct FileTreeNode {
     FileTreeNode();
     FileTreeNode(const std::string& name, const std::string& path, bool isDir);
     
-    //~FileTreeNode();
 };
 
 void displayFileTree(FileTreeNode directory);

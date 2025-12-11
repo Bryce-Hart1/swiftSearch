@@ -1,11 +1,40 @@
-#include<tokenize.cpp>
+#include<parse.h>
+#include<filesystem>
+#include<vector>
+#include<iostream>
+#include<string>
+#include<fstream>
+#include<exception>
+#include<thread>
+
+
+/**
+ * @brief displays the files that will be tranversed to user
+ * @param directory 
+ * 
+ * 
+ */
+
+void displayFileTree(FileTreeNode directory){
+    std::cout << "Processing Following files: " << std::endl;
+    if(directory.children.size() < 100){ //will display
+        for(int i = 0; i < directory.children.size(); i++){
+            std::cout << "[" << (i+1) << "]" << directory.children[i] << ", ";
+
+            if(i % 10 == 0){
+                std::cout << std::endl;
+            }
+        }
+    }
+
+}
 
 
 
 
-unsigned int totalCount;
-std::vector<double> sortableVector;
-std::mutex sharedMutex;
+
+
+
 
 
 
@@ -110,8 +139,42 @@ while(getline(inputFile, line)){
 }
 
 
+/**
+ * @brief collects numbers in file and sends them to merge with the other threads
+ * 
+ * 
+ * 
+ */
+std::vector<double> collectNumbers(std::string fileName){
+    
 
-std::vector<double> sendSort(std::string fileName){
 
+}
+
+
+
+
+
+
+
+/**
+ * @param threadArray the predefined array of threads
+ * @param threadNumber the number in the threadArray
+ * @param operation the opertation that is done by the thread, matches all other threads
+ * @param fileName name of the file that the opertation will be done on, different for every thread
+ */
+
+
+
+void assignThread(std::thread threadArray[], int threadNumber, int opertation, std::string fileName){
+
+    
+}
+
+
+
+
+void joinThreads(std::thread threadArray[], int threadNumber){
+    threadArray[threadNumber].join();
 }
 

@@ -4,19 +4,10 @@
 #include <exception>
 #include <array>
 #include <atomic>
-#include<vector>
+#include <vector>
+#include <mutex>
 
 
-
-struct FileTreeNode {
-    std::string name = "";
-    bool isDirectory = false;
-    int depth = 0;
-    FileTreeNode* parent = nullptr;
-    
-    FileTreeNode() = default;
-    FileTreeNode(const std::string& n, bool isDir);
-};
 
 class atomTrie {
 public:
@@ -24,20 +15,20 @@ public:
     class node {
     public:
         node();
-        node(char val);
         
-        char getValue() const;
         int getCounter() const;
         void incrementCounter();
         
     private:
         char value;
         std::atomic<int> counter;
-        std::vector<node*> childrenNodes;
+        std::vector<std::unique_ptr<node>> childrenNodes;
+        std::mutex nodeMutex;
+
+        friend class atomTrie; //shared private members with ouside
     };
 
     atomTrie();
-    atomTrie(bool isCaseSensitive);
     
     void insert(const std::string& word);
     bool doesExist(const std::string& word) const;
@@ -45,9 +36,13 @@ public:
 
 private:
     std::atomic<int> depth;
-    node *root;
+    std::unique_ptr<node> root;
     bool caseSensitive;
+    unsigned char toLower();
 };
+
+
+
 
 class characterBucket {
 public:
@@ -57,7 +52,7 @@ public:
     
     void push(char value);
     unsigned int getCount(char value) const;
-    void printPair(char value) const;
+    void printPair(char value, int atInstance) const;
 
 private:
     struct cPair {
@@ -66,4 +61,18 @@ private:
     };
     
     std::array<cPair, MAXSIZE> list;
+};
+
+
+
+class numberList{
+    private:
+    bool isInteger;
+    std::vector<long double> mainList;
+
+
+    public:
+    numberList();
+    numberList(bool isInteger);
+
 };

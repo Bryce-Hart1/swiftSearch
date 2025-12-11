@@ -1,16 +1,15 @@
+#include<classes.h>
+#include<vector>
+#include<array>
 #include<exception>
 #include<string>
-#include<fstream>
-#include<string>
-#include<iostream>
-#include<sstream>
-#include<thread>
-#include<array>
 #include<atomic>
-#include<chrono>
-#include<unistd.h>
-
-#pragma once
+#include<filesystem>
+#include<iostream>
+#include<mutex>
+#include<memory>
+#include<sstream>
+#include<print>
 
 class customExceptions : public std::exception{
     private : std::string message;
@@ -25,6 +24,25 @@ class customExceptions : public std::exception{
 
 
 /**
+ * @struct shows node in the directory tree.
+ */
+struct FileTreeNode{
+    std::string Name;
+    bool isDirectory;
+    std::vector<FileTreeNode*> children;
+
+    FileTreeNode(const std::string& name, bool isDir) : Name(name), isDirectory(isDir){}
+    
+
+
+
+
+
+};
+
+
+
+/**
  * 
  * 
  * 
@@ -33,45 +51,39 @@ class customExceptions : public std::exception{
  */
 
 
-class wordBucket{
+
+//Node has count of times found, char* value 
+atomTrie::node::node() : counter(0){}
 
 
-    public:
-    //Node has count of times found, char* value 
-    class node{
-        private:
-        char* value;
-        std::atomic<int> counter;
-    };
-
-        private:
-        std::atomic<int> depth;
-        node root;
-
-
-    wordBucket(){
-        
+atomTrie::atomTrie() : root(std::make_unique<node>()) {}
 
 
 
 
 
-        
-    }
-
-
-
-
-    void addNode(char* newWord){
-
-    }
-
-
-
-
-
+void atomTrie::insert(const std::string &word){
 
 };
+
+bool doesExist(){
+    
+};
+
+unsigned char toLower(unsigned char value){
+    if(value >= 'A' && value <= 'Z'){
+        return (value - 32); //ascii difference between them
+    }
+    return value;
+}
+
+int atomTrie::getDepth() const{
+    return depth;
+};
+
+
+
+
 
 
 
@@ -98,8 +110,6 @@ class characterBucket{
         unsigned int count;
     };
 
-
-    public:
     
 
     private:
@@ -116,8 +126,21 @@ class characterBucket{
         return list[value].count;
     }
 
-    void printPair(char value){
-        std::cout<< list[value].value << " " << list[value].count;
+    void printPair(char value, int atInstance){
+        std::println("key: {}, value {}", list[atInstance].value, list[atInstance].count );
     }
 
+
 };
+
+
+
+
+numberList::numberList(){
+    isInteger = false;
+};
+
+numberList::numberList(bool i) : isInteger(i) {};
+
+
+
