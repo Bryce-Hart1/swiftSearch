@@ -7,6 +7,11 @@
 /**
  * @param str string to convert to lowercase
  */
+
+
+fileTree intializeTree(){
+    
+}
 std::string toLowerCase(std::string str){
     std::string returnStr;
     for(int i = 0; i < str.length(); i++){
@@ -56,12 +61,11 @@ int tokenTwo(std::string token){
     if(!std::filesystem::exists(token)){
         std::cerr << "File path is not valid";
     }
+
+    if(std::filesystem::is_directory(token)){ //first, check if its a single file we are scanning 
+
+    }
     
-
-
-
-
-
 
 
 
@@ -101,7 +105,7 @@ int tokenTwo(std::string token){
  * 
  * @details breaks down several parts:
  * 1st token: #Opertation tag followed by opertation
- * 2nd token: 
+ * 2nd token: filepath 
  * 
  * 
  * 
@@ -121,7 +125,7 @@ void tokenMain(int count, char* argArr[]){
         std::cerr << "command invalid at: " << tokens[0] << "\n";
     }
     if(tokenTwo(tokens[1]) == -1){
-
+        std::cerr << "command invalid at " << tokens[1] << "\n";
 
     }
     

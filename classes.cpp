@@ -23,24 +23,6 @@ class customExceptions : public std::exception{
 
 
 
-/**
- * @struct shows node in the directory tree.
- */
-struct FileTreeNode{
-    std::string Name;
-    bool isDirectory;
-    std::vector<FileTreeNode*> children;
-
-    FileTreeNode(const std::string& name, bool isDir) : Name(name), isDirectory(isDir){}
-    
-
-
-
-
-
-};
-
-
 
 /**
  * 
@@ -67,6 +49,7 @@ void atomTrie::insert(const std::string &word){
 };
 
 bool doesExist(){
+
     
 };
 
