@@ -1,6 +1,7 @@
-#include"parse.h"
-#include"tokenize.h"
-#include"classes.h"
+#include"parse.hpp"
+#include"tokenize.hpp"
+#include"classes.hpp"
+
 #include<iostream>
 #include<unistd.h>
 
@@ -25,6 +26,11 @@ format of command -
 
 */
 
+
+
+
+
+bool debugModeIsOn = false; //this will get reset in tokenizer, but is off by default 
 
 
 /**
@@ -60,19 +66,25 @@ void printInfo(){
 
 
 int main(int argc, char *argv[]){
-    using namespace std;
-    char user; 
+    std::string argumentArr = argv[1]; //first letter of the string pass this to tokenMain for breakdown
+
     const char userEntersCommand = 'c';
     const char userRequestsInfo = 'i';
-    string rootname;
-    string path;
+    std::string rootname;
+    std::string path;
 
-    FileTreeNode root(rootname, path, true);
-    tokenMain(argc, argv);  
+
+    fileTreeNode root(rootname);
+
+    tokenMain(argumentArr); //first thing that needs done - make argumentArr into valid or invalid tokens - this will also check debug mode
+    if(debugModeIsOn){
+        std::cout << "Debug mode is on" << std::endl;
+    }
+
 
 
     //if user does not understand to enter on commandLine, we need then to have a valid command
-        cout << "Enter command: " << userEntersCommand << " View Formatting " << userRequestsInfo;
+        std::cout << "Enter command: " << userEntersCommand << " View Formatting " << userRequestsInfo;
 
 
 

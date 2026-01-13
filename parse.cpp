@@ -1,4 +1,4 @@
-#include<parse.h>
+#include<parse.hpp>
 #include<filesystem>
 #include<vector>
 #include<iostream>
@@ -6,28 +6,6 @@
 #include<fstream>
 #include<exception>
 #include<thread>
-
-
-/**
- * @brief displays the files that will be tranversed to user
- * @param directory 
- * 
- * 
- */
-
-void displayFileTree(FileTreeNode directory){
-    std::cout << "Processing Following files: " << std::endl;
-    if(directory.children.size() < 100){ //will display
-        for(int i = 0; i < directory.children.size(); i++){
-            std::cout << "[" << (i+1) << "]" << directory.children[i] << ", ";
-
-            if(i % 10 == 0){
-                std::cout << std::endl;
-            }
-        }
-    }
-
-}
 
 
 
@@ -53,7 +31,7 @@ int returnCountOf(std::string filename, std::string keyWord, char breakOperand){
 
     ifstream inputFile(filename);
     if (!inputFile.is_open()) {
-        throw customExceptions("File " + filename + " failed to open.\n");}
+        //throw customExceptions("File " + filename + " failed to open.\n");}
 
 
 
@@ -70,7 +48,7 @@ while(getline(inputFile, line)){
 
 }
 
-
+}
 
 
 /**
@@ -86,7 +64,7 @@ bool wasFoundSkipWord(std::string filename, std::string keyWord, char breakOpera
 
     ifstream inputFile(filename);
 if (!inputFile.is_open()) {
-    throw customExceptions("File " + filename + " failed to open.\n");
+    //throw customExceptions("File " + filename + " failed to open.\n");
 }
 string line;
 string needed;
@@ -116,7 +94,7 @@ bool wasFound(std::string filename, std::string keyWord, char breakOperand){
 
     ifstream inputFile(filename);
 if (!inputFile.is_open()) {
-    throw customExceptions("File " + filename + " failed to open.\n");
+    //throw customExceptions("File " + filename + " failed to open.\n");
 }
 
 string line;

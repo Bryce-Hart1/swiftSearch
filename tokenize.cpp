@@ -1,17 +1,82 @@
-#include"tokenize.h"
+#include"tokenize.hpp"
 #include<mutex>
 #include<filesystem>
 #include<vector>
 #include<iostream>
+#include<sstream>
+#include<algorithm> 
+#include<functional>
+
+
+
+//Node can function independant of fileTree, but we cannot start a new fileTree without a root
+//I also need the tokenizer to catch the missing file name BEFORE we hit the stage where we set up a tree.
+
+fileTreeNode::fileTreeNode(){
+
+}
+
+fileTreeNode::fileTreeNode(const std::string& name){
+
+}
+
 
 /**
- * @param str string to convert to lowercase
+ * @attention this member method returns a string of the path,
+ * for example: swift/search/filename instead of object
+ * 
  */
+std::string fileTreeNode::getPath(){
+    return this->path;
+}
+
+
+
+
+fileTree::fileTree(){ 
+}
+
+fileTree::fileTree(std::string root){
+
+}
+
 
 
 fileTree intializeTree(){
     
+
+    
 }
+
+
+fileTreeNode fileTree::getDirectoryRoot(){
+    return root;
+}
+
+
+bool fileTree::isChildNode(std::string path){
+    if(!std::filesystem::is_directory(path)){
+        return false;
+    }
+    return true;
+}
+
+
+std::queue<std::string> fileTree::queueToVisit(std::string root){
+    std::queue<std::string> returnQueue;
+    fileTreeNode current = getDirectoryRoot();
+
+    if(isChildNode(current.getPath())){
+        returnQueue.push(current.getPath());
+        //go back up
+    }else{
+        
+    }
+}
+
+/**
+ * @param str string to convert to lowercase
+ */
 std::string toLowerCase(std::string str){
     std::string returnStr;
     for(int i = 0; i < str.length(); i++){
@@ -56,14 +121,13 @@ int tokenOne(std::string token){
     
 }
 
-
 int tokenTwo(std::string token){
     if(!std::filesystem::exists(token)){
         std::cerr << "File path is not valid";
     }
 
     if(std::filesystem::is_directory(token)){ //first, check if its a single file we are scanning 
-
+        
     }
     
 
@@ -113,21 +177,16 @@ int tokenTwo(std::string token){
  * 
  */
 
-void tokenMain(int count, char* argArr[]){
+void tokenMain(std::string input){
     std::vector<std::string> tokens;
+    const int maxTokenLimit = 10;
+    std::array<int, maxTokenLimit> tokensToInt;
+    std::stringstream stream(input);
     std::string temp;
-    for(int i = 0; i < count; i++){
-        temp = argArr[i];
+    while(stream >> temp){
         tokens.push_back(temp);
     }
-
-    if(tokenOne(tokens[0]) == -1){
-        std::cerr << "command invalid at: " << tokens[0] << "\n";
-    }
-    if(tokenTwo(tokens[1]) == -1){
-        std::cerr << "command invalid at " << tokens[1] << "\n";
-
-    }
+    
     
 
 }
