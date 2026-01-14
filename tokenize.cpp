@@ -42,12 +42,6 @@ fileTree::fileTree(std::string root){
 
 
 
-fileTree intializeTree(){
-    
-
-    
-}
-
 
 fileTreeNode fileTree::getDirectoryRoot(){
     return root;
@@ -90,36 +84,27 @@ std::string toLowerCase(std::string str){
 }
 
 
-
-
-
-/**
- * @brief takes in first argument from command line
- * @example #sort, -sort, 
- */
-int tokenOne(std::string token){
-    if(token[0] != '#'){
-        return -1; //nonvalid
-    }
-    token = toLowerCase(token);
+int checkTokenValid(int place, std::string tokenExtracted){
+    std::array<std::string, 7> firstToken;
+    std::array<std::string, 4> secondTokens;
+    std::array<std::string, 5> optionalThird;
     
-    if(token == "#sortedlist"){
-        return 1;
-    }else if(token == "#-sortedlist"){
-        return 2;
-    }else if(token == "#listnumbers"){
-        return 3;
-    }else if(token == "#listwords"){
-        return 4;
-    }else if(token == "#findcharacterfrequency"){
-        return 5;
-    }else if(token == "#findwordfrequency"){
-        return 6;
-    }else{
-        return -1;
-    }
+    switch (place)
+    {
+    case 0:
+
+        break;
     
+    default:
+        
+        std::cout << "checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
+        break;
+    }
+
 }
+
+
+
 
 int tokenTwo(std::string token){
     if(!std::filesystem::exists(token)){
@@ -127,7 +112,7 @@ int tokenTwo(std::string token){
     }
 
     if(std::filesystem::is_directory(token)){ //first, check if its a single file we are scanning 
-        
+
     }
     
 

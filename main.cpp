@@ -30,7 +30,6 @@ format of command -
 
 
 
-bool debugModeIsOn = false; //this will get reset in tokenizer, but is off by default 
 
 
 /**

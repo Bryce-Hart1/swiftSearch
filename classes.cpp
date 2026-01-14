@@ -12,6 +12,11 @@
 #include<print>
 #include<functional>
 
+
+
+bool debugModeIsOn = false; //this will get reset in tokenizer, but is off by default 
+
+
 class customExceptions : public std::exception{
     private : std::string message;
 
@@ -133,6 +138,13 @@ bool numberList::listNeedsRounded(){
 
 
 void numberList::sortList(){
+    if(TYPE_NOT_SET && debugModeIsOn){
+        std::cout << "type is Not set in numberList::sortlist" << std::endl;
+    }
+    if(TYPE_DOUBLE){
+        
+    }
+    if(TYPE_INT)
     
 }
 

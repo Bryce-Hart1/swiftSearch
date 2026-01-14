@@ -45,6 +45,8 @@ class fileTree{
 
 std::string toLowerCase(std::string str);
 
+int checkTokenValid(int place, std::string tokenExtracted);
+
 int tokenOne(std::string token);
 int tokenTwo(std::string token);
 

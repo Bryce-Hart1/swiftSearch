@@ -9,6 +9,8 @@
 #include <functional>
 
 
+bool debugModeIsOn;
+
 char toLower(unsigned char value);
 char dontConvertToLowerCase(unsigned char value);
 
