@@ -1,31 +1,21 @@
 #include<classes.hpp>
+#include"constants.hpp"
+
+
 #include<vector>
 #include<array>
 #include<exception>
 #include<string>
 #include<atomic>
 #include<filesystem>
-#include<iostream>
 #include<mutex>
 #include<memory>
 #include<sstream>
-#include<print>
 #include<functional>
 
 
 
-bool debugModeIsOn = false; //this will get reset in tokenizer, but is off by default 
 
-
-class customExceptions : public std::exception{
-    private : std::string message;
-
-    public : 
-        customExceptions(const std::string& msg) : message(msg) {}
-        const char* what() const noexcept override {
-            return message.c_str();
-        }
-};
 
 
 char toLower(unsigned char value) {
@@ -144,7 +134,9 @@ void numberList::sortList(){
     if(TYPE_DOUBLE){
         
     }
-    if(TYPE_INT)
+    if(TYPE_INT){
+
+    }
     
 }
 
@@ -175,6 +167,12 @@ void numberList::grabFromThreads(){
 /**
  * @class timer - this class keeps up with the clock to document how long an opertation takes
  */
+
+
+Timer::Timer(){
+    startTime;
+    running = false;
+}
 void Timer::start(){
     startTime = std::chrono::high_resolution_clock::now();
     running = true;
