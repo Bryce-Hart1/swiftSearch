@@ -1,8 +1,8 @@
 #include"parse.hpp"
 #include"tokenize.hpp"
 #include"classes.hpp"
+#include"constants.hpp"
 
-#include<iostream>
 #include<unistd.h>
 
 /*
@@ -75,6 +75,9 @@ int main(int argc, char *argv[]){
 
     fileTreeNode root(rootname);
 
+    Timer mainWatch;
+
+    mainWatch.start();
     tokenMain(argumentArr); //first thing that needs done - make argumentArr into valid or invalid tokens - this will also check debug mode
     if(debugModeIsOn){
         std::cout << "Debug mode is on" << std::endl;
@@ -86,5 +89,9 @@ int main(int argc, char *argv[]){
         std::cout << "Enter command: " << userEntersCommand << " View Formatting " << userRequestsInfo;
 
 
+
+
+    mainWatch.stop();
+    std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
 
 }
