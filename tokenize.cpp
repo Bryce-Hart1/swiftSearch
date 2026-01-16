@@ -1,11 +1,13 @@
 #include"tokenize.hpp"
+#include"constants.hpp"
+
 #include<mutex>
 #include<filesystem>
 #include<vector>
-#include<iostream>
 #include<sstream>
 #include<algorithm> 
 #include<functional>
+#include<queue>
 
 
 
@@ -84,42 +86,72 @@ std::string toLowerCase(std::string str){
 }
 
 
+
+std::string makeSpellCheck(std::string token, std::vector<std::string> &expected){ // change param to a array soon
+    const int exceptedMisses = 2; //change amount of character misses here
+    for(std::string expectedVal : expected){
+        int miss = 0;
+        int ind = 0;
+        expectedVal = toLowerCase(expectedVal);
+        while(ind < expectedVal.size() && ind < token.size() && miss <= exceptedMisses){
+            if(expectedVal[ind] != token[ind]){
+                miss++;
+            }
+            ind++;
+        }
+        if(miss >= exceptedMisses){
+            return expectedVal;
+        }
+        
+    }
+    return token; //no match found
+}
+
+
 int checkTokenValid(int place, std::string tokenExtracted){
+    const int debugToken = 4;
     std::array<std::string, 7> firstToken;
     std::array<std::string, 4> secondTokens;
     std::array<std::string, 5> optionalThird;
     
-    switch (place)
-    {
-    case 0:
+    switch (place){
+        case 0://case first token
 
-        break;
-    
-    default:
         
-        std::cout << "checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
+
+            break;
+        case 1://case second token
+
+
+
         break;
-    }
-
-}
 
 
 
+        case 2:
 
-int tokenTwo(std::string token){
-    if(!std::filesystem::exists(token)){
-        std::cerr << "File path is not valid";
-    }
 
-    if(std::filesystem::is_directory(token)){ //first, check if its a single file we are scanning 
 
-    }
+
+        case debugToken:
+
+            if(tokenExtracted == "debug"){
+
+            }
+
+
+            break;
     
-
-
-
+        default:
+        
+            std::cout << "checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
+            break;
+    }
 
 }
+
+
+
 
 
 

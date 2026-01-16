@@ -4,8 +4,7 @@
 #include <mutex>
 #include <filesystem>
 #include <memory>
-#include <queue>
-
+#include<vector>
 
 class fileTreeNode{
     private:
@@ -45,10 +44,9 @@ class fileTree{
 
 std::string toLowerCase(std::string str);
 
-int checkTokenValid(int place, std::string tokenExtracted);
+std::string makeSpellCheck(std::string input, std::vector<std::string> expected);
 
-int tokenOne(std::string token);
-int tokenTwo(std::string token);
+int checkTokenValid(int place, std::string tokenExtracted);
 
 
 void tokenMain(std::string arg);
