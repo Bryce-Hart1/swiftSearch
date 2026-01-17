@@ -111,15 +111,15 @@ int main(int argc, char *argv[]){
     if(DEBUG_ACTIVE){
         std::cout << "DEBUG ~~ Debug mode is on, hello user." << std::endl;
     }
+    Timer mainWatch;
+    mainWatch.start(); //start timer
 
     //set a enum of the operation, with the root already set.
     //fileTreeNode root(rootname); make tree
-    //Timer mainWatch;
-    //mainWatch.start(); start timer
     //join threads
     //wait for threads to finish
-    //mainWatch.stop();
-    //std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
+    mainWatch.stop();
+    std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
 
 
     if(DEBUG_ACTIVE){ 

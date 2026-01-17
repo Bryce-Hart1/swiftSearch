@@ -31,9 +31,9 @@ std::string toLowerCase(std::string str){
 
 
 
-std::string makeSpellCheck(std::string token, std::vector<std::string> &expected){ // change param to a array soon
+std::string makeSpellCheckOnFirstToken(std::string token, std::array<std::string, 7> expectedFirst){ 
     const int exceptedMisses = 2; //change amount of character misses here
-    for(std::string expectedVal : expected){
+    for(std::string expectedVal : expectedFirst){
         int miss = 0;
         int ind = 0;
         expectedVal = toLowerCase(expectedVal);
@@ -48,15 +48,21 @@ std::string makeSpellCheck(std::string token, std::vector<std::string> &expected
         }
         
     }
+    if(DEBUG_ACTIVE){
+        std::cout << "DEBUG ~~ no match was found, and the token was: " << token << std::endl;
+    }
     return token; //no match found
 }
 
-
+/**
+ * @brief this is an important function, it will set opertation type enum, start making fileTree, and set debug mode
+ */
 int checkTokenValid(int place, std::string tokenExtracted){
-    const int debugToken = 4;
-    std::array<std::string, 7> firstToken;
-    std::array<std::string, 4> secondTokens;
-    std::array<std::string, 5> optionalThird;
+    const int operationType = 0;
+    const int fileDirectory = 1;
+    const int debugToken = 2;
+    std::array<std::string, 7> firstToken = {};
+    
     
     switch (place){
         case 0://case first token
@@ -72,23 +78,17 @@ int checkTokenValid(int place, std::string tokenExtracted){
 
 
 
-        case 2:
-
-
-
-
         case debugToken:
 
             if(tokenExtracted == "debug"){
-
+                DEBUG_ACTIVE = true;
+                std::cout << "DEBUG ~~ debug has been flipped true" << std::endl;
             }
-
-
             break;
     
         default:
         
-            std::cout << "checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
+            std::cout << "DEBUG ~~ checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
             break;
     }
     return 1;
@@ -104,11 +104,7 @@ int checkTokenValid(int place, std::string tokenExtracted){
  * @details breaks down several parts:
  * 1st token: #Opertation tag followed by opertation
  * 2nd token: filepath 
- * 
- * 
- * 
- * 
- * to be refactored
+ * 3rd token: debug mode
  */
 
 
@@ -120,6 +116,11 @@ void tokenMain(std::string input){
     std::string temp;
     while(stream >> temp){
         tokens.push_back(temp);
+    }
+    int currentTokenOn = 0;
+    for(std::string token : tokens){
+        checkTokenValid(currentTokenOn, token);
+        currentTokenOn++;
     }
     
     
