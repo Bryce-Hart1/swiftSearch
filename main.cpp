@@ -51,6 +51,33 @@ void printInfo(){
     cout << "#listWords - takes all the words in the file and displays them in the order they appear." << endl;
     cout << "#findCharacterFrequency - finds the frequency of all values" << endl;
     cout << "findWordFreq - finds the frequency of all words in the list" << endl;
+    sleep(1);
+    cout << "If you would still like to contine, please enter this command now" << endl;
+
+    
+    
+
+}
+
+void checkArgLength(int argc, char *argv[], std::string &argumentArr){
+
+    if(argc < 3){ //If length is invalid, the user gets a set number of tries before the program exits
+        const int numberOfTries = 5;
+        int currentCount = 0;
+        std::string newStr;
+        std::cout << "no command detected. please enter a valid command" << std::endl;
+        printInfo(); //print list once before entering tries
+        std::getline(std::cin, newStr); //if this is still invalid, we can clean it up later so not to have redundant token breakup
+        argumentArr = newStr;
+    }else{
+        for(int i = 1; i < argc; ++i){
+            argumentArr += std::string(argv[i]) + " ";
+        }
+    }
+
+    if(DEBUG_ACTIVE){
+        std::cout << "DEBUG ~~ checkArgLength exited with string being " << argumentArr << std::endl;
+    }
 
 }
 
@@ -62,10 +89,18 @@ void printInfo(){
 
 
 
-
-
 int main(int argc, char *argv[]){
-    std::string argumentArr = argv[1]; //first letter of the string pass this to tokenMain for breakdown
+    DEBUG_ACTIVE = true; //hard set for now
+
+    if(DEBUG_ACTIVE){
+        std::cout << "DEBUG ~~ Debug mode is on, hello user." << std::endl;
+    }
+
+
+    std::string argumentArr;
+    checkArgLength(argc, argv, argumentArr); //check intial Length
+    
+
 
     const char userEntersCommand = 'c';
     const char userRequestsInfo = 'i';
@@ -73,25 +108,26 @@ int main(int argc, char *argv[]){
     std::string path;
 
 
-    fileTreeNode root(rootname);
+    //fileTreeNode root(rootname);
 
-    Timer mainWatch;
+    //Timer mainWatch;
 
-    mainWatch.start();
-    tokenMain(argumentArr); //first thing that needs done - make argumentArr into valid or invalid tokens - this will also check debug mode
-    if(debugModeIsOn){
-        std::cout << "Debug mode is on" << std::endl;
+    //mainWatch.start();
+    //tokenMain(argumentArr); //first thing that needs done - make argumentArr into valid or invalid tokens - this will also check debug mode
+
+
+
+
+
+
+
+
+    //mainWatch.stop();
+    //std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
+
+
+
+    if(DEBUG_ACTIVE){ 
+        std::cout << "DEBUG ~~ Program exited successfully" << std::endl;
     }
-
-
-
-    //if user does not understand to enter on commandLine, we need then to have a valid command
-        std::cout << "Enter command: " << userEntersCommand << " View Formatting " << userRequestsInfo;
-
-
-
-
-    mainWatch.stop();
-    std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
-
 }
