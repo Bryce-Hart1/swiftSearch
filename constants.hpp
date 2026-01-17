@@ -16,7 +16,9 @@ inline bool DEBUG_ACTIVE;
 
 
 enum class OpertationType{
+    INFO,
     
+
 
 };
 

@@ -1,4 +1,5 @@
 #include"parse.hpp"
+#include"constants.hpp"
 #include<filesystem>
 #include<vector>
 #include<iostream>
@@ -135,8 +136,14 @@ std::vector<double> collectNumbers(std::string fileName){
 
 
 
-void assignThread(std::thread threadArray[], int threadNumber, int opertation, std::string fileName){
+void assignThread(std::thread threadArray[], int threadNumber, OpertationType opertation, std::string fileName){
+    switch(opertation){
 
+
+
+
+
+    }
     
 }
 

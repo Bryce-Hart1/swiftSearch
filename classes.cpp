@@ -12,6 +12,7 @@
 #include<memory>
 #include<sstream>
 #include<functional>
+#include<fstream>
 
 
 
@@ -224,6 +225,9 @@ double Timer::timeInSeconds() const {
     bool running = false;
 
 
+
+
+
 file::file(std::string name, bool assignedAsRoot){
     namespace fs = std::filesystem;
     this->fileName = name;
@@ -242,6 +246,11 @@ file::file(std::string name, bool assignedAsRoot){
 
 }
 
+
+std::string file::returnFileName(){
+    return (this->fileName);
+}
+
 //returns size in bytes
 long double file::returnFileSize(){
     return static_cast<long double>(this->sizeOfFile);
@@ -249,9 +258,10 @@ long double file::returnFileSize(){
 
 
 fileTreeStructure::fileTreeStructure(file root){
-
+    
 }
 
 std::string fileTreeStructure::getNameOfNext(){
 
 }
+
