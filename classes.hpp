@@ -9,18 +9,14 @@
 #include <functional>
 
 
-bool debugModeIsOn;
 
 char toLower(unsigned char value);
 char dontConvertToLowerCase(unsigned char value);
 
-
-class atomTrie {
-public:
-
-    class node {
+class atomNode {
     public:
-        node();
+        atomNode();
+        atomNode(bool isRoot, char value);
         
         int getCounter(std::string findNode) const;
         void incrementCounter(std::string atValue);
@@ -29,15 +25,25 @@ public:
         bool isRoot;
         char value;
         std::atomic<int> counter;
-        std::vector<std::unique_ptr<node>> childrenNodes;
+        std::vector<std::unique_ptr<atomNode>> childrenNodes;
         std::mutex nodeMutex;
 
         friend class atomTrie; //shared private members with ouside
-    };
+};
 
 
-    using ptrToType = char(*)(unsigned char);
+
+class atomTrie {
+    using ptrToType = char(*)(unsigned char); //to call function
+
+public:
+
+
+
     ptrToType callFunction;
+
+
+    atomTrie();
     atomTrie(bool isCaseSensitive);
     
     void insert(const std::string& word);
@@ -48,7 +54,7 @@ public:
 
 private:
     std::atomic<int> depth;
-    std::unique_ptr<node> root;
+    std::unique_ptr<atomNode> root;
     bool caseSensitive;
 };
 
