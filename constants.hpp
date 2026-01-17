@@ -11,7 +11,7 @@
 #include<iostream>
 
 
-bool DEBUG_ACTIVE;
+inline bool DEBUG_ACTIVE;
 
 
 

@@ -13,8 +13,6 @@ bool wasFound(std::string filename, std::string keyWord, char breakOperand);
 
 std::vector<double> collectNumbers(std::string filename);
 
-void assignThread(std::thread threadArray[], int threadNUmber, int opertation, std::string filename){
-
-}
+void assignThread(std::thread threadArray[], int threadNUmber, int opertation, std::string filename);
 
 void joinThreads(std::thread threadArray[], int threadNumber);

@@ -91,7 +91,7 @@ int checkTokenValid(int place, std::string tokenExtracted){
             std::cout << "checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
             break;
     }
-
+    return 1;
 }
 
 
