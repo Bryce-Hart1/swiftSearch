@@ -29,8 +29,40 @@ char dontConvertToLowerCase(unsigned char value) {
     return value;
 }
 
+/**
+ * @class node class belongs to atomTrie, while 
+ * 
+ * 
+ */
+atomNode::atomNode(){
+    if(DEBUG_ACTIVE){
+        std::cout << "atomTrie::node is being called with a default constructor." << std::endl;
+    }
+}
+atomNode::atomNode(bool isRoot, char value){
 
-atomTrie::node::node() : counter(0) {}
+}
+
+
+int atomNode::getCounter(std::string findNode) const{
+
+    return 0;
+}
+
+void atomNode::incrementCounter(std::string atValue) {
+
+
+}
+
+
+
+
+
+atomTrie::atomTrie(){
+    if(DEBUG_ACTIVE){
+        std::cout << "atomTrie constuctor called default constructor" << std::endl;
+    }
+}
 
 atomTrie::atomTrie(bool isCaseSensitive) {
     if(isCaseSensitive) {
@@ -43,23 +75,13 @@ atomTrie::atomTrie(bool isCaseSensitive) {
 void atomTrie::insert(const std::string &word) {
     for(char c : word) {
         char converted = callFunction(c); //call function 
-        // ... rest of your insert logic
     }
 }
 
 bool atomTrie::doesExist(const std::string& word ) const {
-    // Implementation
     return false;
 }
 
-int atomTrie::node::getCounter(std::string findNode) const {
-    // Implementation
-    return 0;
-}
-
-void atomTrie::node::incrementCounter(std::string atValue) {
-    // Implementation
-}
 
 int atomTrie::getDepth() const {
     return depth;
@@ -128,7 +150,7 @@ bool numberList::listNeedsRounded(){
 
 
 void numberList::sortList(){
-    if(TYPE_NOT_SET && debugModeIsOn){
+    if(TYPE_NOT_SET && DEBUG_ACTIVE){
         std::cout << "type is Not set in numberList::sortlist" << std::endl;
     }
     if(TYPE_DOUBLE){
