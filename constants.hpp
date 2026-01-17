@@ -11,12 +11,11 @@
 #include<iostream>
 
 
-enum debugState{
-    DEBUG_ACTIVE,
-    DEBUG_INACTIVE
-};
+bool DEBUG_ACTIVE;
 
-enum OpertationType{
+
+
+enum class OpertationType{
     
 
 };
