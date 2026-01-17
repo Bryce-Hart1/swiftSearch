@@ -142,16 +142,23 @@ class Timer{
  */
 class file{
     public:
-    long double returnFileSizeInKB() const;
+    file(std::string name, bool assignedAsRoot);
+    std::string returnFileName();
+    long double returnFileSize();
     private:
     std::string fileName;
     std::uintmax_t sizeOfFile;
     bool isRoot;
-    //std::vector<> you can do pointers later
+    bool isDirectory;
     
 
 };
 class fileTreeStructure{
     public:
+    fileTreeStructure(file root);
+    std::string getNameOfNext();
+    private:
+    std::queue<file> orderOfFilesToOpen;
+
     
 };

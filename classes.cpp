@@ -222,3 +222,36 @@ double Timer::timeInSeconds() const {
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     std::chrono::time_point<std::chrono::high_resolution_clock> endTime;
     bool running = false;
+
+
+file::file(std::string name, bool assignedAsRoot){
+    namespace fs = std::filesystem;
+    this->fileName = name;
+    this->isRoot = assignedAsRoot;
+    try{
+        this->sizeOfFile = fs::file_size(name);
+        this->isDirectory = fs::is_directory(name);
+        
+
+    } catch(fs::filesystem_error& exception){
+        if(DEBUG_ACTIVE){
+            std::cout << "DEBUG ~~ error opening " << name << " in file constructor" << std::endl;
+        }
+        std::cout << "Error: " << exception.what() << std::endl;
+    }
+
+}
+
+//returns size in bytes
+long double file::returnFileSize(){
+    return static_cast<long double>(this->sizeOfFile);
+}
+
+
+fileTreeStructure::fileTreeStructure(file root){
+
+}
+
+std::string fileTreeStructure::getNameOfNext(){
+
+}
