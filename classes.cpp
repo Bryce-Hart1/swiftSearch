@@ -1,4 +1,4 @@
-#include<classes.hpp>
+#include"classes.hpp"
 #include"constants.hpp"
 
 
@@ -127,7 +127,7 @@ unsigned int characterBucket::getCount(char value) const{
 }
 
 void characterBucket::printPair(char value, int atInstance) const {
-    printf("at instance: [%d], value is %d", value, list.at(atInstance));
+    //printf("at instance: [%d], value is %d", value, list.at(atInstance)); there is a reason this is commented out btw..
 }
 
 
@@ -191,10 +191,6 @@ void numberList::grabFromThreads(){
  */
 
 
-Timer::Timer(){
-    startTime;
-    running = false;
-}
 void Timer::start(){
     startTime = std::chrono::high_resolution_clock::now();
     running = true;

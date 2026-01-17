@@ -7,7 +7,7 @@
 #include <vector>
 #include <mutex>
 #include <functional>
-
+#include <queue>
 
 
 char toLower(unsigned char value);
@@ -131,4 +131,27 @@ class Timer{
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     std::chrono::time_point<std::chrono::high_resolution_clock> endTime;
     bool running = false;
+};
+
+
+
+/**
+ * @class the redesigned file class, to accompany the fileTreeStructure class. This will keep basic 
+ * info about the file for quick lookup
+ * 
+ */
+class file{
+    public:
+    long double returnFileSizeInKB() const;
+    private:
+    std::string fileName;
+    std::uintmax_t sizeOfFile;
+    bool isRoot;
+    //std::vector<> you can do pointers later
+    
+
+};
+class fileTreeStructure{
+    public:
+    
 };
