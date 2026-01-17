@@ -92,9 +92,6 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
 int main(int argc, char *argv[]){
     DEBUG_ACTIVE = true; //hard set for now
 
-    if(DEBUG_ACTIVE){
-        std::cout << "DEBUG ~~ Debug mode is on, hello user." << std::endl;
-    }
 
 
     std::string argumentArr;
@@ -102,29 +99,27 @@ int main(int argc, char *argv[]){
     
 
 
-    const char userEntersCommand = 'c';
-    const char userRequestsInfo = 'i';
+
     std::string rootname;
     std::string path;
 
 
-    //fileTreeNode root(rootname);
 
+
+
+    tokenMain(argumentArr); 
+    if(DEBUG_ACTIVE){
+        std::cout << "DEBUG ~~ Debug mode is on, hello user." << std::endl;
+    }
+
+    //set a enum of the operation, with the root already set.
+    //fileTreeNode root(rootname); make tree
     //Timer mainWatch;
-
-    //mainWatch.start();
-    //tokenMain(argumentArr); //first thing that needs done - make argumentArr into valid or invalid tokens - this will also check debug mode
-
-
-
-
-
-
-
-
+    //mainWatch.start(); start timer
+    //join threads
+    //wait for threads to finish
     //mainWatch.stop();
     //std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
-
 
 
     if(DEBUG_ACTIVE){ 
