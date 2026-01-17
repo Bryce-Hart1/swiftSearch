@@ -14,62 +14,6 @@
 //Node can function independant of fileTree, but we cannot start a new fileTree without a root
 //I also need the tokenizer to catch the missing file name BEFORE we hit the stage where we set up a tree.
 
-fileTreeNode::fileTreeNode(){
-
-}
-
-fileTreeNode::fileTreeNode(const std::string& name){
-
-}
-
-
-/**
- * @attention this member method returns a string of the path,
- * for example: swift/search/filename instead of object
- * 
- */
-std::string fileTreeNode::getPath(){
-    return this->path;
-}
-
-
-
-
-fileTree::fileTree(){ 
-}
-
-fileTree::fileTree(std::string root){
-
-}
-
-
-
-
-fileTreeNode fileTree::getDirectoryRoot(){
-    return root;
-}
-
-
-bool fileTree::isChildNode(std::string path){
-    if(!std::filesystem::is_directory(path)){
-        return false;
-    }
-    return true;
-}
-
-
-std::queue<std::string> fileTree::queueToVisit(std::string root){
-    std::queue<std::string> returnQueue;
-    fileTreeNode current = getDirectoryRoot();
-
-    if(isChildNode(current.getPath())){
-        returnQueue.push(current.getPath());
-        //go back up
-    }else{
-        
-    }
-}
-
 /**
  * @param str string to convert to lowercase
  */
@@ -154,33 +98,6 @@ int checkTokenValid(int place, std::string tokenExtracted){
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * @brief breaks down command line from main()
  * 
@@ -191,8 +108,9 @@ int checkTokenValid(int place, std::string tokenExtracted){
  * 
  * 
  * 
- * 
+ * to be refactored
  */
+
 
 void tokenMain(std::string input){
     std::vector<std::string> tokens;
@@ -207,7 +125,4 @@ void tokenMain(std::string input){
     
 
 }
-
-
-
 
