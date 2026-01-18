@@ -187,6 +187,16 @@ void numberList::grabFromThreads(){
 }
 
 
+unsigned int simpleCount::getCount(){
+    return (this->count);
+}
+
+void simpleCount::incrementBy(int amount){
+    this->count.fetch_add(amount);
+}
+
+
+
 /**
  * @class timer - this class keeps up with the clock to document how long an opertation takes
  */

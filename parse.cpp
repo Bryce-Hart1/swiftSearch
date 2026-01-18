@@ -1,5 +1,7 @@
-#include"parse.hpp"
-#include"constants.hpp"
+#include "parse.hpp"
+#include "constants.hpp"
+#include "classes.hpp"
+
 #include<filesystem>
 #include<vector>
 #include<iostream>
@@ -12,7 +14,8 @@
 
 
 
-void info(std::string fileName){
+void info(file x){
+    std::cout << x.returnFileName() << " size: " << x.returnFileSize() << std::endl;
 
 }
 
@@ -29,91 +32,88 @@ std::vector<double> collectNumbers(std::string fileName){
 
 }
 
+
+
+
+bool check(std::string lookFor, std::string current){
+    if(lookFor.length() == current.length()){
+
+    }
+    return false;
+}
+
 /**
  * @details 
  * @param filename name of the file the thread will work on
- * @param keyWord will return this count of this string to the shared memory 
+ * @param keyWord will return this count of this string to the shared memory, which is just a shared count
  * 
  */
-int returnCountOf(std::string filename, std::string keyWord, char breakOperand){
+int findAll(file filename, std::string keyWord){
     using namespace std;
 
     int countInFile = 0;
+    simpleCount counter;
 
-    ifstream inputFile(filename);
-    if (!inputFile.is_open()) {
-        //throw customExceptions("File " + filename + " failed to open.\n");}
+    string line;
 
+    try{
+    ifstream inputFile(filename.returnFileName());
+    if(inputFile.is_open()){
+        while(getline(inputFile, line)){
+            istringstream strstream(line);
+            string word;
 
+            while(strstream >> word){
+                if(check(keyWord, word)){
+                    counter.incrementBy(1);
+                }
 
-
-string line, currentword;
-while(getline(inputFile, line)){
-    for(int i = 0; i < line.length(); i++){
-        if(line[i] == breakOperand){
-            currentword.clear();
-        }
-        currentword+= line[i];
+            }
         }
     }
 
+
+
+    }catch(std::filesystem::filesystem_error e){
+        cout << e.what() << endl;
+
+        if(DEBUG_ACTIVE){
+
+            cout << "DEBUG ~~ Error opening file " << filename.returnFileName() << endl;
+    }
+}
+    
+
+
+
 }
 
-}
-
-
-
-
-int findAll(std::string fileName, std::string keyWord){
-
-}
 
 /**
  * @brief finds and returns as soon as keyword is found, even if keyword is inside of another word
  * 
  * 
  */
-bool findOne(std::string filename, std::string keyWord, char breakOperand){
-    using namespace std;
-
-    ifstream inputFile(filename);
-if (!inputFile.is_open()) {
-    //throw customExceptions("File " + filename + " failed to open.\n");
-}
-
-string line;
-int SizeOfKeyWord = keyWord.length();
-int needInd = 0;
-while(getline(inputFile, line)){
-    for(int i = 0; i < line.length(); i++){
-        if(keyWord[needInd] != line[i]){ //if the char we are looking for is not the same as the one on string
-            needInd = 0;
-        }else{
-            needInd++; //match move to next ind
-        }
-        if(needInd == SizeOfKeyWord){
-            return true;
-        }
-    }
-
-    }
-    return false;
-}
-
-
-
-
-
-
-auto wordFreq(std::string fileName){
-
-}
-
-
-
-auto charFreq(std::string fileName){
+bool findOne(file fileName, std::string keyWord){
     
 }
+
+
+
+
+
+//should make a file since the amount of words could be very large
+void wordFreq(file fileName){
+
+}
+
+
+//should just print each character to the command line 
+void charFreq(file fileName){
+
+}
+
+
 
 
 
@@ -157,5 +157,12 @@ std::vector<std::thread> assignThread(OP_TYPE opertation, std::string fileName){
 
 
 void joinThreads(std::vector<std::thread> threadVec, int threadNumber){
+    for(std::thread& thread : threadVec){
+        try{
+            thread.join();
+        }catch(std::exception e){
+
+        }
+    }
 }
 

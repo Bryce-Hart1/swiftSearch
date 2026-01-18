@@ -115,6 +115,15 @@ class numberList{
 };
 
 
+class simpleCount{
+    public:
+    void incrementBy(int amount);
+    unsigned int getCount();
+    private:
+    std::atomic<unsigned int> count;
+};
+
+
 
 
 

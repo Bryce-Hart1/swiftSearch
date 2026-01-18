@@ -7,18 +7,20 @@
 
 //if you are looking for fileTreeNode class it is in tokenize, do not write related functions here
 
-void info(std::string fileName);
+void info(file fileName);
 
-std::vector<double> collectNumbers(std::string filename);
+std::vector<double> collectNumbers(file filename);
 
 
-int findAll(std::string filename, std::string keyWord);
+bool check(std::string lookFor, std::string current);
 
-bool findOne(std::string filename, std::string keyWord, char breakOperand);
+int findAll(file filename, std::string keyWord);
 
-auto wordFreq(std::string fileName);
+bool findOne(file filename, std::string keyWord);
 
-auto charFreq(std::string fileName);
+void wordFreq(file fileName);
+
+void charFreq(file fileName);
 
 
 std::vector<std::thread> assignThread(OP_TYPE opertation, std::string fileName);
