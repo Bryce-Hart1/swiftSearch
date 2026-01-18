@@ -13,3 +13,8 @@ The possible operations start with # when entering the command line, and they ar
 #listWords - takes all the words in the file and displays them in the order they appear.
 #findCharacterFrequency - finds the frequency of all values
 #findWordFreq - finds the frequency of all words in the list
+
+
+
+for clang: compile with: 
+clang++ -std=c++26 main.cpp tokenize.cpp parse.cpp classes.cpp -o main 

@@ -8,6 +8,7 @@
 #include <mutex>
 #include <functional>
 #include <queue>
+#include <filesystem>
 
 
 char toLower(unsigned char value);
