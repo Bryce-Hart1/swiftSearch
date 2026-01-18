@@ -94,21 +94,36 @@ int atomTrie::getDepth() const {
 
 
 
+
+/**
+ * @class partners with characterBucket
+ */
+void atomCharPair::increment(){
+    this->count.fetch_add(1);
+}
+
+
+
+
 /**
  * @class characterBucket - stores counts of all characters found
  * @details does a O(1) opertation to add characters to buckets to print the count of them later
  * only will add ascii values to buckets (extended ascii: 0 - 255)
  * 
  */
-void atomCharPair::increment(){
-
+characterBucket::characterBucket(bool ignore){
+    this->ignoreCaps = ignore;
 }
 
-void characterBucket::addTo(char value){
 
+void characterBucket::addTo(char value){
+    this->buckets.at(value).increment(); //takes bucket at value (a char) and increments by 1
 }
 
 void characterBucket::printAll(){
+    if(this->ignoreCaps){
+
+    }
 
 }
 

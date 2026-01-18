@@ -63,23 +63,30 @@ private:
 
 
 
-
+/**
+ * @class pairs with character bucket
+ * increment - increments atomic count
+ */
 class atomCharPair{
     public:
     void increment();
     private:
     char value;
-
+    std::atomic<unsigned int> count;
 };
+
+
 class characterBucket {
     
 public:
+    characterBucket::characterBucket(bool ignore);
     void addTo(char value);
     void printAll();
 
 
 private:
     std::array<atomCharPair, 255> buckets; //255 is for all ascii values
+    bool ignoreCaps;
 };
 
 

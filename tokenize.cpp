@@ -31,28 +31,6 @@ std::string toLowerCase(std::string str){
 
 
 
-std::string makeSpellCheckOnFirstToken(std::string token, std::array<std::string, 7> expectedFirst){ 
-    const int exceptedMisses = 2; //change amount of character misses here
-    for(std::string expectedVal : expectedFirst){
-        int miss = 0;
-        int ind = 0;
-        expectedVal = toLowerCase(expectedVal);
-        while(ind < expectedVal.size() && ind < token.size() && miss <= exceptedMisses){
-            if(expectedVal[ind] != token[ind]){
-                miss++;
-            }
-            ind++;
-        }
-        if(miss >= exceptedMisses){
-            return expectedVal;
-        }
-        
-    }
-    if(DEBUG_ACTIVE){
-        std::cout << "DEBUG ~~ no match was found, and the token was: " << token << std::endl;
-    }
-    return token; //no match found
-}
 
 /**
  * @brief this is an important function, it will set opertation type enum, start making fileTree, and set debug mode
