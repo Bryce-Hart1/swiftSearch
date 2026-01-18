@@ -100,37 +100,20 @@ int atomTrie::getDepth() const {
  * only will add ascii values to buckets (extended ascii: 0 - 255)
  * 
  */
-struct atom_cPair {
-    char value = '\0'; //using as default value
-    std::unique_ptr<std::atomic<unsigned int>> count = 
-        std::make_unique<std::atomic<unsigned int>>(0);
-};
-    
-    characterBucket::characterBucket() {
-    for (auto& pair : list) {
-        pair.count = 0; //set intial to 0
-    }
+void atomCharPair::increment(){
+
 }
 
-characterBucket::~characterBucket() {
+void characterBucket::addTo(char value){
 
-};
-
-
-
-//push a new count to the currentlist
-void characterBucket::push(char value){
-//atomically set up
-}
-//return value at a character value
-unsigned int characterBucket::getCount(char value) const{
-    return 0; 
 }
 
-void characterBucket::printPair(char value, int atInstance) const {
-    //printf("at instance: [%d], value is %d", value, list.at(atInstance)); there is a reason this is commented out btw..
+void characterBucket::printAll(){
+
 }
 
+
+  
 
 
 

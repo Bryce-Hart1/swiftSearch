@@ -62,25 +62,24 @@ private:
 
 
 
+
+
+class atomCharPair{
+    public:
+    void increment();
+    private:
+    char value;
+
+};
 class characterBucket {
+    
 public:
-    static constexpr int MAXSIZE = 255;
-    
-    characterBucket();
-    ~characterBucket();
-    
-    void push(char value);
-    unsigned int getCount(char value) const;
-    void printPair(char value, int atInstance) const;
+    void addTo(char value);
+    void printAll();
+
 
 private:
-struct atom_cPair {
-    char value = '\0'; //using as default value
-    std::unique_ptr<std::atomic<unsigned int>> count = 
-        std::make_unique<std::atomic<unsigned int>>(0);
-};
-    
-    std::array<atom_cPair, MAXSIZE> list;
+    std::array<atomCharPair, 255> buckets; //255 is for all ascii values
 };
 
 
