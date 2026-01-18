@@ -15,11 +15,16 @@ inline bool DEBUG_ACTIVE;
 
 
 
-enum class OpertationType{
+enum class OP_TYPE{
     INFO,
-    
-
-
+    SORTED_LIST,
+    R_SORTED_LIST,
+    LIST_NUMBERS,
+    LIST_WORDS,
+    CHAR_FREQ,
+    WORD_FREQ,
+    FIND_ALL,
+    FIND_ONE
 };
 
 

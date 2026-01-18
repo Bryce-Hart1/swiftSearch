@@ -229,15 +229,15 @@ double Timer::timeInSeconds() const {
 
 
 file::file(std::string name, bool assignedAsRoot){
-    namespace fs = std::filesystem;
+    
     this->fileName = name;
     this->isRoot = assignedAsRoot;
     try{
-        this->sizeOfFile = fs::file_size(name);
-        this->isDirectory = fs::is_directory(name);
+        this->sizeOfFile = std::filesystem::file_size(name);
+        this->isDirectory = std::filesystem::is_directory(name);
         
 
-    } catch(fs::filesystem_error& exception){
+    } catch(std::filesystem::filesystem_error& exception){
         if(DEBUG_ACTIVE){
             std::cout << "DEBUG ~~ error opening " << name << " in file constructor" << std::endl;
         }

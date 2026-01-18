@@ -128,7 +128,7 @@ std::vector<double> collectNumbers(std::string fileName){
 
 
 /**
- * @param threadArray the predefined array of threads
+ * @brief creates new vector of threads depending on what is needed
  * @param threadNumber the number in the threadArray
  * @param operation the opertation that is done by the thread, matches all other threads
  * @param fileName name of the file that the opertation will be done on, different for every thread
@@ -136,21 +136,37 @@ std::vector<double> collectNumbers(std::string fileName){
 
 
 
-void assignThread(std::thread threadArray[], int threadNumber, OpertationType opertation, std::string fileName){
+std::vector<std::thread> assignThread(OP_TYPE opertation, std::string fileName){
     switch(opertation){
-
-
-
-
-
+            case OP_TYPE::INFO:
+            //std::thread tempThread()
+            break;
+            case OP_TYPE::LIST_NUMBERS:
+            case OP_TYPE::R_SORTED_LIST:
+            case OP_TYPE::SORTED_LIST:
+            //std::thread temp(collectNumbers(fileName));
+            break;
+            case OP_TYPE::CHAR_FREQ:
+            //std::thread temp() not yet implemented
+            break;
+            case OP_TYPE::WORD_FREQ:
+            //not yet implemented
+            break;
+            case OP_TYPE::FIND_ALL:
+            //find all instances of string and return
+            break;
+            case OP_TYPE::FIND_ONE:
+            //find one instance of string and return
+            break;
+            default:
+            
+        }
     }
     
-}
 
 
 
 
-void joinThreads(std::thread threadArray[], int threadNumber){
-    threadArray[threadNumber].join();
+void joinThreads(std::vector<std::thread> threadVec, int threadNumber){
 }
 
