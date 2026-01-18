@@ -10,6 +10,25 @@
 
 
 
+
+
+void info(std::string fileName){
+
+}
+
+
+/**
+ * @brief collects numbers in file and sends them to merge with the other threads
+ * 
+ * 
+ * 
+ */
+std::vector<double> collectNumbers(std::string fileName){
+    
+
+
+}
+
 /**
  * @details 
  * @param filename name of the file the thread will work on
@@ -43,45 +62,18 @@ while(getline(inputFile, line)){
 }
 
 
-/**
- * @brief finds and returns keyword only if keyword has breakOperand on both sides.
- * 
- * 
- * 
- * 
- */
 
-bool wasFoundSkipWord(std::string filename, std::string keyWord, char breakOperand){
-    using namespace std;
 
-    ifstream inputFile(filename);
-if (!inputFile.is_open()) {
-    //throw customExceptions("File " + filename + " failed to open.\n");
+int findAll(std::string fileName, std::string keyWord){
+
 }
-string line;
-string needed;
-int neededInd = 0;
-while(getline(inputFile, line)){
-    for(int i = 0; i < line.length(); i++){
-        if(line[i] == breakOperand){
-            needed = keyWord;
-        }else{
-
-        }
-        
-    }
-
-    }
-}
-
-
 
 /**
  * @brief finds and returns as soon as keyword is found, even if keyword is inside of another word
  * 
  * 
  */
-bool wasFound(std::string filename, std::string keyWord, char breakOperand){
+bool findOne(std::string filename, std::string keyWord, char breakOperand){
     using namespace std;
 
     ifstream inputFile(filename);
@@ -109,20 +101,19 @@ while(getline(inputFile, line)){
 }
 
 
-/**
- * @brief collects numbers in file and sends them to merge with the other threads
- * 
- * 
- * 
- */
-std::vector<double> collectNumbers(std::string fileName){
-    
 
+
+
+
+auto wordFreq(std::string fileName){
 
 }
 
 
 
+auto charFreq(std::string fileName){
+    
+}
 
 
 
@@ -133,8 +124,6 @@ std::vector<double> collectNumbers(std::string fileName){
  * @param operation the opertation that is done by the thread, matches all other threads
  * @param fileName name of the file that the opertation will be done on, different for every thread
  */
-
-
 
 std::vector<std::thread> assignThread(OP_TYPE opertation, std::string fileName){
     switch(opertation){
