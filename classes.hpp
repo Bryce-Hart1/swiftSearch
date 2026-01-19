@@ -14,53 +14,36 @@
 char toLower(unsigned char value);
 char dontConvertToLowerCase(unsigned char value);
 
-class atomNode {
+
+/**
+ * @class designed to work with both int and char for now, will help build trees to lock 
+ * 
+ * 
+ * designed to name the object made root and call setup on that node
+ */
+class atomicNode {
     public:
-        atomNode();
-        atomNode(bool isRoot, char value);
-        
-        int getCounter(std::string findNode) const;
-        void incrementCounter(std::string atValue);
-        
+        atomicNode();
+        atomicNode(char value);
+        void increment();
+        unsigned int getCount();
+        char getValue();
+        void setEndPointTrue();
+        bool getEndPoint();
+        void addChild();
+        atomicNode* findChild(char value);
+        unsigned int getChildCount() const;
+        void add(std::string word);
+
     private:
-        bool isRoot;
         char value;
-        std::atomic<int> counter;
-        std::vector<std::unique_ptr<atomNode>> childrenNodes;
-        std::mutex nodeMutex;
+        unsigned int count;
+        mutable std::mutex mtx;
+        bool isEndPoint;
+        bool root;
+        std::vector<std::unique_ptr<atomicNode>> children;
 
-        friend class atomTrie; //shared private members with ouside
 };
-
-
-
-class atomTrie {
-    using ptrToType = char(*)(unsigned char); //to call function
-
-public:
-
-
-
-    ptrToType callFunction;
-
-
-    atomTrie();
-    atomTrie(bool isCaseSensitive);
-    
-    void insert(const std::string& word);
-    bool doesExist(const std::string& word) const ;
-    int getDepth() const ;
-
-
-
-private:
-    std::atomic<int> depth;
-    std::unique_ptr<atomNode> root;
-    bool caseSensitive;
-};
-
-
-
 
 
 /**
@@ -96,17 +79,14 @@ class numberList{
         TYPE_NOT_SET,
         TYPE_DOUBLE,
         TYPE_INT};
-
+            //might need to use a mutex?
     
     private:
     bool isIntegerList;
     bool needsRounded;
-
-    
     std::vector<long double> mainListDouble;
     std::vector<long long int> mainListInt;
-    std::atomic<long long int> sizeOfList;
-
+        
 
 
     public:

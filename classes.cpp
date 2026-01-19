@@ -30,63 +30,63 @@ char dontConvertToLowerCase(unsigned char value) {
     return value;
 }
 
-/**
- * @class node class belongs to atomTrie, while 
- * 
- * 
- */
-atomNode::atomNode(){
-    if(DEBUG_ACTIVE){
-        std::cout << "atomTrie::node is being called with a default constructor." << std::endl;
+//default constructor gets called on root
+atomicNode::atomicNode(){
+    this->value = '*';
+    this->root = true;
+}
+
+atomicNode::atomicNode(char value){
+    this->value = value;
+    this->root = false;
+}
+
+void atomicNode::increment() {
+    std::lock_guard<std::mutex> lock(mtx);
+    ++count;
+}
+
+unsigned int atomicNode::getCount(){
+    std::lock_guard<std::mutex> lock(mtx);
+    return this->count;
+}
+
+char atomicNode::getValue(){
+    std::lock_guard<std::mutex> lock(mtx);
+    return this->value;
+}
+
+void atomicNode::setEndPointTrue(){
+    std::lock_guard<std::mutex> lock(mtx);
+    this->isEndPoint = true;
+}
+
+bool atomicNode::getEndPoint(){
+    return this->isEndPoint;
+}
+
+void atomicNode::addChild(){
+    std::lock_guard<std::mutex> lock(mtx);
+    //push back new children
+}
+
+atomicNode* atomicNode::findChild(char value){
+    std::lock_guard<std::mutex> lock(mtx);
+    for(auto& child : children){
+        if(child->value == value){
+            return child.get();
+        }
     }
-}
-atomNode::atomNode(bool isRoot, char value){
-
+    return nullptr;
 }
 
-
-int atomNode::getCounter(std::string findNode) const{
-
-    return 0;
-}
-
-void atomNode::incrementCounter(std::string atValue) {
-
+unsigned int atomicNode::getChildCount() const{
+    std::lock_guard<std::mutex> lock(mtx);
+    return children.size();
 
 }
 
 
-
-
-
-atomTrie::atomTrie(){
-    if(DEBUG_ACTIVE){
-        std::cout << "atomTrie constuctor called default constructor" << std::endl;
-    }
-}
-
-atomTrie::atomTrie(bool isCaseSensitive) {
-    if(isCaseSensitive) {
-        callFunction = dontConvertToLowerCase;
-    } else {
-        callFunction = toLower;//if not convert to lower
-    }
-}
-
-void atomTrie::insert(const std::string &word) {
-    for(char c : word) {
-        char converted = callFunction(c); //call function 
-    }
-}
-
-bool atomTrie::doesExist(const std::string& word ) const {
-    return false;
-}
-
-
-int atomTrie::getDepth() const {
-    return depth;
-}
 
 
 
@@ -133,11 +133,10 @@ void characterBucket::printAll(){
 
 
 
-numberList::numberList(){
-    isIntegerList = false; //unless told otherwise
+numberList::numberList(bool isIntList){
+    this->isIntegerList = isIntList;
 };
 
-numberList::numberList(bool i) : isIntegerList(i) {};
 
 
 bool numberList::listNeedsRounded(){
