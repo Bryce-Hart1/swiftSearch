@@ -27,9 +27,9 @@ void info(file x){
  * 
  */
 std::vector<double> collectNumbers(std::string fileName){
-    
+    std::vector<double> temp;
 
-
+    return temp; //to silence warning for now
 }
 
 
@@ -48,7 +48,7 @@ bool check(std::string lookFor, std::string current){
  * @param keyWord will return this count of this string to the shared memory, which is just a shared count
  * 
  */
-int findAll(file filename, std::string keyWord){
+void findAll(file filename, std::string keyWord){
     using namespace std;
 
     int countInFile = 0;
@@ -95,7 +95,11 @@ int findAll(file filename, std::string keyWord){
  * 
  */
 bool findOne(file fileName, std::string keyWord){
-    
+
+
+
+
+    return true; //placeHolder
 }
 
 
@@ -125,12 +129,14 @@ void charFreq(file fileName){
  * @param fileName name of the file that the opertation will be done on, different for every thread
  */
 
-std::vector<std::thread> assignThread(OP_TYPE opertation, std::string fileName){
+
+void assignThreads(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<std::string> fileNames){
     switch(opertation){
-            case OP_TYPE::INFO:
-            //std::thread tempThread()
+            case OP_TYPE::INFO :{
+
             break;
-            case OP_TYPE::LIST_NUMBERS:
+            }case OP_TYPE::LIST_NUMBERS: {
+            }
             case OP_TYPE::R_SORTED_LIST:
             case OP_TYPE::SORTED_LIST:
             //std::thread temp(collectNumbers(fileName));
@@ -150,6 +156,7 @@ std::vector<std::thread> assignThread(OP_TYPE opertation, std::string fileName){
             default:
             
         }
+
     }
     
 

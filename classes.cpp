@@ -135,60 +135,8 @@ void characterBucket::printAll(){
 }
 
 
-  
 
 
-
-
-numberList::numberList(bool isIntList){
-    this->isIntegerList = isIntList;
-};
-
-
-
-bool numberList::listNeedsRounded(){
-    if(this->needsRounded){
-        return true;
-    }
-    return false;
-}
-
-
-void numberList::sortList(){
-    if(TYPE_NOT_SET && DEBUG_ACTIVE){
-        std::cout << "type is Not set in numberList::sortlist" << std::endl;
-    }
-    if(TYPE_DOUBLE){
-        
-    }
-    if(TYPE_INT){
-
-    }
-    
-}
-
-
-long long int numberList::roundList(bool roundUp){
-    if(!isIntegerList){
-    
-
-
-    }
-}
-unsigned int numberList::getSize(){};
-
-
-
-
-
-/**
- * @brief combines from threads
- * @details this is a better way then using atomic, as they are seperate objects
- * and would need to be transfered anyway.
- */
-void numberList::grabFromThreads(){
-
-}
 
 
 unsigned int simpleCount::getCount(){
@@ -276,6 +224,8 @@ fileTreeStructure::fileTreeStructure(file root){
 }
 
 std::string fileTreeStructure::getNameOfNext(){
+
+    return "not implemented";
 
 }
 
