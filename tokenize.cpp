@@ -30,49 +30,21 @@ std::string toLowerCase(std::string str){
 }
 
 
-
-
-/**
- * @brief this is an important function, it will set opertation type enum, start making fileTree, and set debug mode
- */
-int checkTokenValid(int place, std::string tokenExtracted){
-    const int operationType = 0;
-    const int fileDirectory = 1;
-    const int debugToken = 2;
-    std::array<std::string, 7> firstToken = {};
-    
-    
-    switch (place){
-        case 0://case first token
-
-        
-
-            break;
-        case 1://case second token
-
-
-
-        break;
-
-
-
-        case debugToken:
-
-            if(tokenExtracted == "debug"){
-                DEBUG_ACTIVE = true;
-                std::cout << "DEBUG ~~ debug has been flipped true" << std::endl;
+void assignTokenOne(std::string tokenOne){
+    std::array<std::string, 10> Tokens = {"#info"};
+    tokenOne = toLowerCase(tokenOne);
+    int goThoughTokens = 0;
+    for(std::string token : Tokens){
+        for(int i = 0; i < token.length(); i++){
+            if(goThoughTokens == 10){
+                std::cout << "first Token is not valid" << std::endl;
             }
-            break;
-    
-        default:
-        
-            std::cout << "DEBUG ~~ checkTokenValid is out of bounds. Values are " << place << " " << tokenExtracted << std::endl;
-            break;
-    }
-    return 1;
+            if(token[i] != Tokens[goThoughTokens][i]){ //if it is valid, contine.
+                
+            }
+        }
+    }    
 }
-
-
 
 
 
@@ -89,17 +61,17 @@ int checkTokenValid(int place, std::string tokenExtracted){
 void tokenMain(std::string input){
     std::vector<std::string> tokens;
     const int maxTokenLimit = 10;
-    std::array<int, maxTokenLimit> tokensToInt;
+    std::string fileToLook;
+
     std::stringstream stream(input);
     std::string temp;
     while(stream >> temp){
-        tokens.push_back(temp);
+        tokens.push_back(temp); //pushes all tokens into a vector
     }
-    int currentTokenOn = 0;
-    for(std::string token : tokens){
-        checkTokenValid(currentTokenOn, token);
-        currentTokenOn++;
-    }
+
+
+
+
     
     
 

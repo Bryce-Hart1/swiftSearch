@@ -87,7 +87,14 @@ unsigned int atomicNode::getChildCount() const{
 }
 
 
-
+void atomicNode::add(std::string word){
+    //find out how to assign root 
+    for(int i = 0; i < word.length(); i++){
+        if(this->findChild(word[i]) != nullptr){ //if there is an existing child, contine
+            
+        }
+    }
+}
 
 
 

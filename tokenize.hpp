@@ -10,7 +10,6 @@
 std::string toLowerCase(std::string str);
 
 
-int checkTokenValid(int place, std::string tokenExtracted);
 
 
 void tokenMain(std::string input);
