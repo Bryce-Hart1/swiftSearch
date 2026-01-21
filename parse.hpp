@@ -10,8 +10,6 @@
 
 void info(file fileName);
 
-std::vector<double> collectNumbers(file filename);
-
 
 bool check(std::string lookFor, std::string current);
 

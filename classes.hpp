@@ -45,6 +45,10 @@ class atomicNode {
 
 };
 
+class atomicIntNode : public atomicNode{
+
+};
+
 
 /**
  * @class pairs with character bucket
@@ -62,7 +66,7 @@ class atomCharPair{
 class characterBucket {
     
 public:
-    characterBucket::characterBucket(bool ignore);
+    characterBucket(bool ignore);
     void addTo(char value);
     void printAll();
 
@@ -157,4 +161,12 @@ class fileTreeStructure{
     std::queue<file> orderOfFilesToOpen;
 
     
+};
+
+
+class threadPrint{
+    public:
+    
+
+    mutable std::mutex mtx;
 };

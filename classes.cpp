@@ -201,9 +201,9 @@ file::file(std::string name, bool assignedAsRoot){
 
     } catch(std::filesystem::filesystem_error& exception){
         if(DEBUG_ACTIVE){
-            std::cout << "DEBUG ~~ error opening " << name << " in file constructor" << std::endl;
+            std::println("DEBUG ~~ error opening {} in file constructor", (this->fileName));
         }
-        std::cout << "Error: " << exception.what() << std::endl;
+        std::print("Error generated from file: {}", exception.what());
     }
 
 }
@@ -228,4 +228,5 @@ std::string fileTreeStructure::getNameOfNext(){
     return "not implemented";
 
 }
+
 

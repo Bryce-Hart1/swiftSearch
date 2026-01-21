@@ -15,7 +15,7 @@
 
 
 void info(file x){
-    std::cout << x.returnFileName() << " size: " << x.returnFileSize() << std::endl;
+    std::println("File name: {} | File size: {}", x.returnFileName());
 
 }
 
@@ -26,11 +26,7 @@ void info(file x){
  * 
  * 
  */
-std::vector<double> collectNumbers(std::string fileName){
-    std::vector<double> temp;
 
-    return temp; //to silence warning for now
-}
 
 
 
@@ -75,18 +71,14 @@ void findAll(file filename, std::string keyWord){
 
 
     }catch(std::filesystem::filesystem_error e){
-        cout << e.what() << endl;
+        println(e.what());
 
-        if(DEBUG_ACTIVE){
-
-            cout << "DEBUG ~~ Error opening file " << filename.returnFileName() << endl;
+        printDebug("Error opening file");
     }
 }
     
 
 
-
-}
 
 
 /**
@@ -137,24 +129,23 @@ void assignThreads(std::vector<std::thread> &threadVector, OP_TYPE opertation, s
             break;
             }case OP_TYPE::LIST_NUMBERS: {
             }
-            case OP_TYPE::R_SORTED_LIST:
-            case OP_TYPE::SORTED_LIST:
-            //std::thread temp(collectNumbers(fileName));
+            case OP_TYPE::R_SORTED_LIST: {
+            }case OP_TYPE::SORTED_LIST: {
             break;
-            case OP_TYPE::CHAR_FREQ:
+            }case OP_TYPE::CHAR_FREQ:
             //std::thread temp() not yet implemented
             break;
-            case OP_TYPE::WORD_FREQ:
+            case OP_TYPE::WORD_FREQ: {
             //not yet implemented
             break;
-            case OP_TYPE::FIND_ALL:
+            }case OP_TYPE::FIND_ALL: {
             //find all instances of string and return
             break;
-            case OP_TYPE::FIND_ONE:
+            }case OP_TYPE::FIND_ONE: {
             //find one instance of string and return
             break;
-            default:
-            
+            }default:
+            break;
         }
 
     }

@@ -27,3 +27,10 @@ findWordFreq - finds the frequency of all words in the list
 
 for clang: compile with: 
 clang++ -std=c++26 main.cpp tokenize.cpp parse.cpp classes.cpp -o main 
+
+
+
+
+#Design 
+
+std::print was used to keep printing atomic, and was used in main to keep conformity throughout.

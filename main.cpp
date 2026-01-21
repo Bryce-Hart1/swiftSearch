@@ -40,19 +40,19 @@ void printInfo(){
     using namespace std;
 
 
-
-    cout << "Please input a file to parse in the following format" << endl;
-    cout << "#sortedList @fileName" << endl;
+    println("Please input a file to parse in the following format");
+    println("#sortedList @fileName -flag");
     sleep(1);
-    cout << "possible # operations: " << endl;
-    cout << " #sortedList - takes all numbers and sorts them into a printable file, smallest to largest" << endl;
-    cout << " #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)" << endl;
-    cout << "#listNumbers - takes all numbers and sorts them into a file in the order they appear" << endl;
-    cout << "#listWords - takes all the words in the file and displays them in the order they appear." << endl;
-    cout << "#findCharacterFrequency - finds the frequency of all values" << endl;
-    cout << "findWordFreq - finds the frequency of all words in the list" << endl;
+    println("possible # operations: ");
     sleep(1);
-    cout << "If you would still like to contine, please enter this command now" << endl;
+    println(" #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
+    println(" #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
+    println("#listNumbers - takes all numbers and sorts them into a file in the order they appear");
+    println("#listWords - takes all the words in the file and displays them in the order they appear.");
+    println("#findCharacterFrequency - finds the frequency of all values");
+    println("findWordFreq - finds the frequency of all words in the list");
+    sleep(1);
+    println("If you would still like to contine, please enter this command now");
 
     
     
@@ -65,7 +65,7 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
         const int numberOfTries = 5;
         int currentCount = 0;
         std::string newStr;
-        std::cout << "no command detected. please enter a valid command" << std::endl;
+        std::println("No command detected.");
         printInfo(); //print list once before entering tries
         std::getline(std::cin, newStr); //if this is still invalid, we can clean it up later so not to have redundant token breakup
         argumentArr = newStr;
@@ -74,10 +74,8 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
             argumentArr += std::string(argv[i]) + " ";
         }
     }
-
-    if(DEBUG_ACTIVE){
-        std::cout << "DEBUG ~~ checkArgLength exited with string being " << argumentArr << std::endl;
-    }
+    std::string debug = ("ArgArr is " + argumentArr);
+    printDebug(debug);
 
 }
 
@@ -109,7 +107,7 @@ int main(int argc, char *argv[]){
 
     tokenMain(argumentArr); 
     if(DEBUG_ACTIVE){
-        std::cout << "DEBUG ~~ Debug mode is on, hello user." << std::endl;
+        std::println("DEBUG ~ debug mode isOn");
     }
     Timer mainWatch;
     mainWatch.start(); //start timer
@@ -119,10 +117,10 @@ int main(int argc, char *argv[]){
     //join threads
     //wait for threads to finish
     mainWatch.stop();
-    std::cout << "Opertation has finished in " << mainWatch.timeInSeconds() << std::endl;
+    std::println("Opertation has finished in {}", mainWatch.timeInSeconds());
 
 
     if(DEBUG_ACTIVE){ 
-        std::cout << "DEBUG ~~ Program exited successfully" << std::endl;
+        std::println("DEBUG ~~ Program exited successfully");
     }
 }
