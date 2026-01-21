@@ -213,6 +213,7 @@ double Timer::timeInSeconds() const {
 
 
 
+
 file::file(std::string name, bool assignedAsRoot){
     
 
@@ -225,10 +226,24 @@ std::string file::returnFileName(){
 }
 
 //returns size in bytes
-unsigned int file::returnFileSize(){
-    return static_cast<unsigned int>(this->sizeOfFile);
+unsigned long long int file::returnFileSize(){
+    return static_cast<unsigned long long int>(this->sizeOfFile);
 }
 
+
+//returns a readable size for the user
+std::string file::returnReadableSize(){
+    unsigned long long int fileSize = (this->returnFileSize());
+    if( fileSize < 1000 ){
+        return (std::to_string(fileSize) + " bytes"); 
+    }else if(fileSize < 1000000){ //up to giga
+        double temp = (fileSize / 1000);
+        return (std::to_string(fileSize) + " kilobytes");
+    }else{ 
+        double temp = (fileSize / 1000000);
+        return (std::to_string(fileSize) + " gigabytes");  
+    }
+}
 
 fileTreeStructure::fileTreeStructure(file root){
     
@@ -252,4 +267,12 @@ std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type)
         case std::filesystem::file_type::not_found:  return "not found";
         default:                                     return "none";
     }
+}
+
+std::queue<std::string> fileTreeStructure::createStringQueue(){
+    std::queue<std::string> names;
+    for(file f : this->storedFiles){
+        names.push(f.returnFileName());
+    }
+    return names;
 }

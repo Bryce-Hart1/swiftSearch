@@ -148,27 +148,27 @@ class file{
     public:
     file(std::string name, bool assignedAsRoot);
     std::string returnFileName();
-    unsigned int returnFileSize();
+    unsigned long long int returnFileSize();
     std::string returnReadableSize();
     private:
     std::string fileName;
     std::uintmax_t sizeOfFile;
     std::filesystem::file_type enumFileType;
-    
+    //maybe last edit time later
 
 };
 class fileTreeStructure{
     public:
     fileTreeStructure(file root); //putting setup in constructor
 
-    std::queue<std::string> createStringQueue(fileTreeStructure fts);
+    std::queue<std::string> createStringQueue();
     std::string getNameAt(int value); //meant to interate over
     std::string fileTypeToString(std::filesystem::file_type type);
     std::filesystem::file_type returnEnumType();
     void printEditTime(); //literally no reason to get return type
     std::string getPath();
     private:
-
+    std::vector<file> storedFiles;
     
 };
 
