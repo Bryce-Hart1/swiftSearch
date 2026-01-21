@@ -215,19 +215,7 @@ double Timer::timeInSeconds() const {
 
 file::file(std::string name, bool assignedAsRoot){
     
-    this->fileName = name;
-    this->isRoot = assignedAsRoot;
-    try{
-        this->sizeOfFile = std::filesystem::file_size(name);
-        this->isDirectory = std::filesystem::is_directory(name);
-        
 
-    } catch(std::filesystem::filesystem_error& exception){
-        if(DEBUG_ACTIVE){
-            std::println("DEBUG ~~ error opening {} in file constructor", (this->fileName));
-        }
-        std::print("Error generated from file: {}", exception.what());
-    }
 
 }
 
@@ -237,8 +225,8 @@ std::string file::returnFileName(){
 }
 
 //returns size in bytes
-long double file::returnFileSize(){
-    return static_cast<long double>(this->sizeOfFile);
+unsigned int file::returnFileSize(){
+    return static_cast<unsigned int>(this->sizeOfFile);
 }
 
 
@@ -246,10 +234,22 @@ fileTreeStructure::fileTreeStructure(file root){
     
 }
 
-std::string fileTreeStructure::getNameOfNext(){
 
-    return "not implemented";
 
+
+
+std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type) {
+    //ill do a namespace later to clean this actual eyesore
+    switch(type) {
+        case std::filesystem::file_type::regular:    return "regular file";
+        case std::filesystem::file_type::directory:  return "directory";
+        case std::filesystem::file_type::symlink:    return "symlink";
+        case std::filesystem::file_type::block:      return "block device";
+        case std::filesystem::file_type::character:  return "character device";
+        case std::filesystem::file_type::fifo:       return "fifo";
+        case std::filesystem::file_type::socket:     return "socket";
+        case std::filesystem::file_type::unknown:    return "unknown";
+        case std::filesystem::file_type::not_found:  return "not found";
+        default:                                     return "none";
+    }
 }
-
-

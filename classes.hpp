@@ -148,29 +148,27 @@ class file{
     public:
     file(std::string name, bool assignedAsRoot);
     std::string returnFileName();
-    long double returnFileSize();
+    unsigned int returnFileSize();
+    std::string returnReadableSize();
     private:
     std::string fileName;
     std::uintmax_t sizeOfFile;
-    bool isRoot;
-    bool isDirectory;
+    std::filesystem::file_type enumFileType;
     
 
 };
 class fileTreeStructure{
     public:
-    fileTreeStructure(file root);
-    std::string getNameOfNext();
+    fileTreeStructure(file root); //putting setup in constructor
+
+    std::queue<std::string> createStringQueue(fileTreeStructure fts);
+    std::string getNameAt(int value); //meant to interate over
+    std::string fileTypeToString(std::filesystem::file_type type);
+    std::filesystem::file_type returnEnumType();
+    void printEditTime(); //literally no reason to get return type
+    std::string getPath();
     private:
-    std::queue<file> orderOfFilesToOpen;
 
     
 };
 
-
-class threadPrint{
-    public:
-    
-
-    mutable std::mutex mtx;
-};
