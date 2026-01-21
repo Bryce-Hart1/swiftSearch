@@ -57,6 +57,8 @@ class atomicIntNode : public atomicNode{
 class atomCharPair{
     public:
     void increment();
+    char getValue();
+    int getCount();
     private:
     char value;
     std::atomic<unsigned int> count;
@@ -69,6 +71,8 @@ public:
     characterBucket(bool ignore);
     void addTo(char value);
     void printAll();
+    char getValueAt(int value);
+    unsigned int getCounterAt(int value);
 
 
 private:

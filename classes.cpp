@@ -109,7 +109,12 @@ void atomCharPair::increment(){
     this->count.fetch_add(1);
 }
 
-
+int atomCharPair::getCount(){
+    return (this->count);
+}
+char atomCharPair::getValue(){
+    return (this->value);
+}
 
 
 /**
@@ -128,15 +133,33 @@ void characterBucket::addTo(char value){
 }
 
 void characterBucket::printAll(){
-    if(this->ignoreCaps){
-
+    for(int i = 0; i < this->buckets.size(); i++){
+        if(ignoreCaps){
+            const int dist = 32; //distance from A to a in ascii
+            if(i < 'A' && 'Z' < i){//better A and Z print nothing
+                if('a' <= i && i <= 'z'){ //between a and z, add counts from the capitals
+                    std::println("{}: count: {}", getValueAt(i), (getCounterAt(i) + getCounterAt(i-dist)) );
+                }
+            }
+        }
     }
 
 }
 
+char characterBucket::getValueAt(int value){
+    return (this->buckets.at(value).getValue());
+}
+
+unsigned int characterBucket::getCounterAt(int value){
+    return (this->buckets.at(value).getCount());
+}
 
 
 
+/**
+ * @class an atomic counter.
+ * use getCount to get count from a value, and incrementBy to change the count by a given amount.
+ */
 
 
 unsigned int simpleCount::getCount(){

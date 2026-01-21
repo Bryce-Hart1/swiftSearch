@@ -13,14 +13,14 @@ void info(file fileName);
 
 bool check(std::string lookFor, std::string current);
 
-void findAll(file filename, std::string keyWord);
+void findAll(std::string filename, std::string keyWord);
 
-bool findOne(file filename, std::string keyWord);
+bool findOne(std::string filename, std::string keyWord);
 
-void wordFreq(file fileName);
+void wordFreq(std::string fileName);
 
-void charFreq(file fileName);
+void charFreq(std::string fileName, characterBucket &cBucket);
 
-void assignThreads(std::vector<std::thread> &threadVec, OP_TYPE opertation, std::queue<std::string> fileNames);
+void assignOperation(std::vector<std::thread> &threadVec, OP_TYPE opertation, std::queue<std::string> fileNames);
 
 void joinThreads(std::vector<std::thread> threadVec, int threadNumber);

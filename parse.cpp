@@ -44,16 +44,15 @@ bool check(std::string lookFor, std::string current){
  * @param keyWord will return this count of this string to the shared memory, which is just a shared count
  * 
  */
-void findAll(file filename, std::string keyWord){
+void findAll(std::string filename, std::string keyWord){
     using namespace std;
 
-    int countInFile = 0;
     simpleCount counter;
 
     string line;
 
     try{
-    ifstream inputFile(filename.returnFileName());
+    ifstream inputFile(filename);
     if(inputFile.is_open()){
         while(getline(inputFile, line)){
             istringstream strstream(line);
@@ -86,7 +85,7 @@ void findAll(file filename, std::string keyWord){
  * 
  * 
  */
-bool findOne(file fileName, std::string keyWord){
+bool findOne(std::string fileName, std::string keyWord){
 
 
 
@@ -99,13 +98,36 @@ bool findOne(file fileName, std::string keyWord){
 
 
 //should make a file since the amount of words could be very large
-void wordFreq(file fileName){
+void wordFreq(std::string fileName){
 
 }
 
 
-//should just print each character to the command line 
-void charFreq(file fileName){
+/**
+ * @brief using charbucket to find character frequency.
+ * As of right now, it does not track spaces but this is by design.
+ * 
+ * 
+ */
+void charFreq(std::string fileName, characterBucket &cBucket){
+
+
+try{
+    std::ifstream input(fileName);
+    std::string word;
+
+    while(input >> word){
+        for(char letter : word){
+            cBucket.addTo(letter);
+        }
+    }
+
+
+
+}catch(std::exception e){
+    std::println(e.what());
+}
+
 
 }
 
@@ -122,24 +144,37 @@ void charFreq(file fileName){
  */
 
 
-void assignThreads(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<std::string> fileNames){
-    switch(opertation){
+void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<std::string> fileNames){
+
+        std::thread thread;
+        switch(opertation){
             case OP_TYPE::INFO :{
+
+
 
             break;
             }case OP_TYPE::LIST_NUMBERS: {
+                //not let implemented
+                break;
             }
             case OP_TYPE::R_SORTED_LIST: {
+
             }case OP_TYPE::SORTED_LIST: {
             break;
-            }case OP_TYPE::CHAR_FREQ:
-            //std::thread temp() not yet implemented
-            break;
-            case OP_TYPE::WORD_FREQ: {
+
+            }case OP_TYPE::CHAR_FREQ: {
+                characterBucket bucketArr(NO_CAPITALS_FLAG);
+                while(!fileNames.empty()){
+                    std::thread thread(charFreq(fileNames.front(),bucketArr));
+                    fileNames.pop();
+                }
+
+
+            }case OP_TYPE::WORD_FREQ: {
             //not yet implemented
             break;
             }case OP_TYPE::FIND_ALL: {
-            //find all instances of string and return
+                std::thread temp(findAll);
             break;
             }case OP_TYPE::FIND_ONE: {
             //find one instance of string and return
@@ -162,5 +197,6 @@ void joinThreads(std::vector<std::thread> threadVec, int threadNumber){
 
         }
     }
+    printDebug("Threads have finished");
 }
 

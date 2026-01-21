@@ -11,7 +11,8 @@
 #include<iostream>
 
 
-inline bool DEBUG_ACTIVE;
+inline bool DEBUG_ACTIVE_FLAG;
+inline bool NO_CAPITALS_FLAG;
 
 
 
@@ -38,3 +39,12 @@ class customExceptions : public std::exception{
             return message.c_str();
         }
 };
+
+
+void printDebug(std::string message){
+    if(DEBUG_ACTIVE_FLAG){
+        std::string debugStatement = "DEBUG ~~ ";
+        std::println("{} {}", debugStatement, message);
+
+    }
+}
