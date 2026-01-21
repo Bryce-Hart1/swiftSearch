@@ -122,8 +122,6 @@ try{
         }
     }
 
-
-
 }catch(std::exception e){
     std::println(e.what());
 }
@@ -165,12 +163,17 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
             }case OP_TYPE::CHAR_FREQ: {
                 characterBucket bucketArr(NO_CAPITALS_FLAG);
                 while(!fileNames.empty()){
-                    std::thread thread(charFreq(fileNames.front(),bucketArr));
+                    std::thread temp(charFreq, fileNames.front(), bucketArr);
                     fileNames.pop();
+                    threadVector.push_back(temp);
                 }
-
+                std::string charMes = ("queue sucessfully finished for charFreq vector size is" + threadVector.size());
+                printDebug(charMes);
+                joinThreads(threadVector); //seperate join function
+                bucketArr.printAll(); //print with method
 
             }case OP_TYPE::WORD_FREQ: {
+
             //not yet implemented
             break;
             }case OP_TYPE::FIND_ALL: {
@@ -189,7 +192,7 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
 
 
 
-void joinThreads(std::vector<std::thread> threadVec, int threadNumber){
+void joinThreads(std::vector<std::thread>& threadVec){
     for(std::thread& thread : threadVec){
         try{
             thread.join();

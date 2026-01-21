@@ -31,22 +31,32 @@ std::string toLowerCase(std::string str){
 
 
 void assignTokenOne(std::string tokenOne){
-    std::array<std::string, 10> Tokens = {"#info"};
+    std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
+    "#listnumbers", "#listwords", "#findcharacterfrequency", "findwordfreq"};
     tokenOne = toLowerCase(tokenOne);
     int goThoughTokens = 0;
-    for(std::string token : Tokens){
-        for(int i = 0; i < token.length(); i++){
-            if(goThoughTokens == 10){
-                std::cout << "first Token is not valid" << std::endl;
-            }
-            if(token[i] != Tokens[goThoughTokens][i]){ //if it is valid, contine.
-                
-            }
+    int foundAt = -1;
+    for(int i = 0; i < Tokens.size(); i++){
+        if(Tokens.at(i) == tokenOne){
+            foundAt = i;
         }
-    }    
+    }
+    if(foundAt == -1){
+        std::println("Operation is not valid. Make sure it starts with # and is one word.");
+        printDebug(("Token One is invalid and value is " + tokenOne));
+    }
+
+
+}
+
+void assignTokenTwo(){
+
 }
 
 
+void justifyFlags(std::vector<std::string> flagsDetected){
+
+}
 
 /**
  * @brief breaks down command line from main()
@@ -54,7 +64,7 @@ void assignTokenOne(std::string tokenOne){
  * @details breaks down several parts:
  * 1st token: #Opertation tag followed by opertation
  * 2nd token: filepath 
- * 3rd token: debug mode
+ * 3rd token: debug mode and other flags
  */
 
 
@@ -63,11 +73,13 @@ void tokenMain(std::string input){
     const int maxTokenLimit = 10;
     std::string fileToLook;
 
+
     std::stringstream stream(input);
     std::string temp;
     while(stream >> temp){
         tokens.push_back(temp); //pushes all tokens into a vector
     }
+    
 
 
 
