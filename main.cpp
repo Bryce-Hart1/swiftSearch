@@ -88,27 +88,16 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
 
 
 int main(int argc, char *argv[]){
-    DEBUG_ACTIVE = true; //hard set for now
+    DEBUG_ACTIVE_FLAG = true; //hard set for now
 
 
 
     std::string argumentArr;
     checkArgLength(argc, argv, argumentArr); //check intial Length
-    
-
-
-
-    std::string rootname;
-    std::string path;
-
-
-
-
+    //if length is good, continue
 
     tokenMain(argumentArr); 
-    if(DEBUG_ACTIVE){
-        std::println("DEBUG ~ debug mode isOn");
-    }
+        printDebug("Debug mode is on");
     Timer mainWatch;
     mainWatch.start(); //start timer
 
@@ -120,7 +109,5 @@ int main(int argc, char *argv[]){
     std::println("Opertation has finished in {}", mainWatch.timeInSeconds());
 
 
-    if(DEBUG_ACTIVE){ 
-        std::println("DEBUG ~~ Program exited successfully");
-    }
+    printDebug("Program sucessfully exited");
 }

@@ -23,4 +23,4 @@ void charFreq(std::string fileName, characterBucket &cBucket);
 
 void assignOperation(std::vector<std::thread> &threadVec, OP_TYPE opertation, std::queue<std::string> fileNames);
 
-void joinThreads(std::vector<std::thread> threadVec, int threadNumber);
+void joinThreads(std::vector<std::thread> &threadVec);

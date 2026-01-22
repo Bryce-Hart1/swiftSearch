@@ -15,8 +15,7 @@
 
 
 void info(file x){
-    std::println("File name: {} | File size: {}", x.returnFileName());
-
+    std::println("File name: {} | File size: {}", x.getFileName(), x.returnReadableSize());
 }
 
 
@@ -31,12 +30,7 @@ void info(file x){
 
 
 
-bool check(std::string lookFor, std::string current){
-    if(lookFor.length() == current.length()){
 
-    }
-    return false;
-}
 
 /**
  * @details 
@@ -59,7 +53,7 @@ void findAll(std::string filename, std::string keyWord){
             string word;
 
             while(strstream >> word){
-                if(check(keyWord, word)){
+                if(keyWord == word){
                     counter.incrementBy(1);
                 }
 
@@ -70,9 +64,9 @@ void findAll(std::string filename, std::string keyWord){
 
 
     }catch(std::filesystem::filesystem_error e){
-        println(e.what());
-
+        std::string error = e.what();
         printDebug("Error opening file");
+        printDebug(error);
     }
 }
     
@@ -86,11 +80,22 @@ void findAll(std::string filename, std::string keyWord){
  * 
  */
 bool findOne(std::string fileName, std::string keyWord){
+    try
+    {
+        std::ifstream input(fileName);
+        std::string word;
+        while(input >> word){
+            if(word == keyWord){
+                return true;
+            }
+        }
+    }
+    catch(const std::exception& e)
+    {
+        //will not be using cerr. find a threadsafe, wrappable workaround
+    }
 
-
-
-
-    return true; //placeHolder
+    return false; 
 }
 
 
@@ -98,8 +103,19 @@ bool findOne(std::string fileName, std::string keyWord){
 
 
 //should make a file since the amount of words could be very large
-void wordFreq(std::string fileName){
+void wordFreq(std::string fileName, atomicNode root){
+    using namespace std;
+    try{
+        ifstream input(fileName);
+        string word;
 
+        while(input >> word){
+            root.add(word);
+        }
+    }catch(exception e){
+        string error = e.what();
+        printDebug(error);
+    }
 }
 
 
@@ -123,8 +139,9 @@ try{
     }
 
 }catch(std::exception e){
-    std::println(e.what());
-}
+    std::string error = e.what();
+    printDebug(error);
+    }
 
 
 }
@@ -167,12 +184,16 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
                     fileNames.pop();
                     threadVector.push_back(temp);
                 }
-                std::string charMes = ("queue sucessfully finished for charFreq vector size is" + threadVector.size());
+                std::string charMes = ("queue sucessfully finished for charFreq vector size is" + std::to_string(threadVector.size()));
                 printDebug(charMes);
                 joinThreads(threadVector); //seperate join function
                 bucketArr.printAll(); //print with method
 
             }case OP_TYPE::WORD_FREQ: {
+                atomicNode wordTree('*'); //root
+
+
+
 
             //not yet implemented
             break;
@@ -197,9 +218,9 @@ void joinThreads(std::vector<std::thread>& threadVec){
         try{
             thread.join();
         }catch(std::exception e){
-
+            std::string error = e.what();
+            printDebug(error);
         }
     }
     printDebug("Threads have finished");
 }
-
