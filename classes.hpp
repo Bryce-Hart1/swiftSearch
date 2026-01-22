@@ -147,14 +147,17 @@ class Timer{
 class file{
     public:
     file(std::string name, bool assignedAsRoot);
-    std::string returnFileName();
-    unsigned long long int returnFileSize();
+    std::string getFileName();
+    unsigned long long int getFileSize();
     std::string returnReadableSize();
-    std::filesystem::file_type returnEnum();
+    std::filesystem::file_type getEnumType();
+    std::filesystem::path getfsPath();
+    std::string filePathToStr();
     private:
     std::string fileName;
     std::uintmax_t sizeOfFile;
     std::filesystem::file_type enumFileType;
+    std::filesystem::path fsPath; //Non string type
     //maybe last edit time later
 
 };
@@ -166,8 +169,7 @@ class fileTreeStructure{
     std::string getNameAt(int value); //meant to interate over
     std::string fileTypeToString(std::filesystem::file_type type);
     std::filesystem::file_type returnEnumTypeAt(int value);
-    void printEditTime(); //literally no reason to get return type
-    std::string getPath();
+    std::string getPathAt(int value);
     private:
     std::vector<file> storedFiles;
     

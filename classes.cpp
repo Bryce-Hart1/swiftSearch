@@ -17,8 +17,6 @@
 
 
 
-
-
 char toLower(unsigned char value) {
     if(value >= 'A' && value <= 'Z') {
         return value + 32;
@@ -215,25 +213,24 @@ double Timer::timeInSeconds() const {
 
 
 file::file(std::string name, bool assignedAsRoot){
-    
-
-
+    this->fileName = name;
+    this->fsPath = std::filesystem::path(name);
 }
 
 
-std::string file::returnFileName(){
+std::string file::getFileName(){
     return (this->fileName);
 }
 
 //returns size in bytes
-unsigned long long int file::returnFileSize(){
+unsigned long long int file::getFileSize(){
     return static_cast<unsigned long long int>(this->sizeOfFile);
 }
 
 
 //returns a readable size for the user
 std::string file::returnReadableSize(){
-    unsigned long long int fileSize = (this->returnFileSize());
+    unsigned long long int fileSize = (this->getFileSize());
     if( fileSize < 1000 ){
         return (std::to_string(fileSize) + " bytes"); 
     }else if(fileSize < 1000000){ //up to giga
@@ -245,21 +242,37 @@ std::string file::returnReadableSize(){
     }
 }
 
+//returns enum of file type from file_type enum
+std::filesystem::file_type file::getEnumType(){
+    return (this->enumFileType);
+}
+
+std::filesystem::path file::getfsPath(){
+    return(this->fsPath);
+}
+
+
+
+
 fileTreeStructure::fileTreeStructure(file root){
     
 }
 
 std::string fileTreeStructure::getNameAt(int value){
-    return (this->storedFiles.at(value).returnFileName());
+    return (this->storedFiles.at(value).getFileName());
 }
 
 std::filesystem::file_type fileTreeStructure::returnEnumTypeAt(int value){
-    return (this->storedFiles.at(value).returnEnum());
+    return (this->storedFiles.at(value).getEnumType());
 }
 
 
+
+std::string fileTreeStructure::getPathAt(int value){
+    return (this->storedFiles.at(value).getfsPath());
+}
 std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type) {
-    //ill do a namespace later to clean this actual eyesore
+
     switch(type) {
         case std::filesystem::file_type::regular:    return "regular file";
         case std::filesystem::file_type::directory:  return "directory";
@@ -277,7 +290,7 @@ std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type)
 std::queue<std::string> fileTreeStructure::createStringQueue(){
     std::queue<std::string> names;
     for(file f : this->storedFiles){
-        names.push(f.returnFileName());
+        names.push(f.getFileName());
     }
     return names;
 }
