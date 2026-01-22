@@ -162,7 +162,7 @@ unsigned int characterBucket::getCounterAt(int value){
  */
 
 
-unsigned int simpleCount::getCount(){
+unsigned long long int simpleCount::getCount(){
     return (this->count);
 }
 
@@ -249,8 +249,13 @@ fileTreeStructure::fileTreeStructure(file root){
     
 }
 
+std::string fileTreeStructure::getNameAt(int value){
+    return (this->storedFiles.at(value).returnFileName());
+}
 
-
+std::filesystem::file_type fileTreeStructure::returnEnumTypeAt(int value){
+    return (this->storedFiles.at(value).returnEnum());
+}
 
 
 std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type) {

@@ -112,9 +112,9 @@ class numberList{
 class simpleCount{
     public:
     void incrementBy(int amount);
-    unsigned int getCount();
+    unsigned long long int getCount();
     private:
-    std::atomic<unsigned int> count;
+    std::atomic<unsigned long long int> count;
 };
 
 
@@ -150,6 +150,7 @@ class file{
     std::string returnFileName();
     unsigned long long int returnFileSize();
     std::string returnReadableSize();
+    std::filesystem::file_type returnEnum();
     private:
     std::string fileName;
     std::uintmax_t sizeOfFile;
@@ -164,7 +165,7 @@ class fileTreeStructure{
     std::queue<std::string> createStringQueue();
     std::string getNameAt(int value); //meant to interate over
     std::string fileTypeToString(std::filesystem::file_type type);
-    std::filesystem::file_type returnEnumType();
+    std::filesystem::file_type returnEnumTypeAt(int value);
     void printEditTime(); //literally no reason to get return type
     std::string getPath();
     private:
