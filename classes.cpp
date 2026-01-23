@@ -238,7 +238,9 @@ std::string Timer::readableTime(){
 
 
 
-
+file::file(){
+    this->fileName = "Unassigned";
+}
 
 
 file::file(std::string name, bool assignedAsRoot){
@@ -303,9 +305,27 @@ void file::setPath(std::filesystem::path path){
  * to create a fileTree, a given root is scanned using file 
  */
 
-//creates whole treee from the root file given
+//creates whole tree from the root file given
 fileTreeStructure::fileTreeStructure(file root){
-    
+    namespace fs = std::filesystem;
+    try{ //first create structure from the filesystem iterator
+        for(const auto &entry : std::filesystem::recursive_directory_iterator(root.getfsPath())){
+            file x;
+            x.setFileName(entry.path().filename().generic_string());
+            x.setPath(entry.path());
+            x.setEnumType(entry.status().type());
+
+            if(entry.is_regular_file()){ //dont wanna set size for anything that isnt a normal file
+                x.setFileSize(entry.file_size());
+            }else{
+                x.setFileSize(0); //no size
+            }
+            storedFiles.push_back(x);
+        }
+
+    }catch(std::exception e){
+        std::cerr << e.what() << std::endl;
+    }
 }
 
 //returns string of name of individal file
@@ -327,17 +347,17 @@ std::string fileTreeStructure::getPathAt(int value){
 
 //converts enum type to a readable string
 std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type) {
-
+    namespace fs = std::filesystem;
     switch(type) {
-        case std::filesystem::file_type::regular:    return "regular file";
-        case std::filesystem::file_type::directory:  return "directory";
-        case std::filesystem::file_type::symlink:    return "symlink";
-        case std::filesystem::file_type::block:      return "block device";
-        case std::filesystem::file_type::character:  return "character device";
-        case std::filesystem::file_type::fifo:       return "fifo";
-        case std::filesystem::file_type::socket:     return "socket";
-        case std::filesystem::file_type::unknown:    return "unknown";
-        case std::filesystem::file_type::not_found:  return "not found";
+        case fs::file_type::regular:    return "regular file";
+        case fs::file_type::directory:  return "directory";
+        case fs::file_type::symlink:    return "symlink";
+        case fs::file_type::block:      return "block device";
+        case fs::file_type::character:  return "character device";
+        case fs::file_type::fifo:       return "fifo";
+        case fs::file_type::socket:     return "socket";
+        case fs::file_type::unknown:    return "unknown";
+        case fs::file_type::not_found:  return "not found";
         default:                                     return "none";
     }
 }
@@ -350,4 +370,17 @@ std::queue<std::string> fileTreeStructure::createStringQueue(){
         names.push(f.getFileName());
     }
     return names;
+}
+
+size_t fileTreeStructure::entrysInStruct(){
+    return this->storedFiles.size();
+}
+
+
+//only prints name of file and path. for debug 
+void fileTreeStructure::printAll(){
+    for(auto& f : this->storedFiles){
+        std::println(f.getFileName());
+        std::println("path: {}", f.filePathToStr());
+    }
 }

@@ -144,6 +144,7 @@ class Timer{
  */
 class file{
     public:
+    file();
     file(std::string name, bool assignedAsRoot);
     std::string getFileName();
     unsigned long long int getFileSize();
@@ -161,6 +162,8 @@ class file{
     std::filesystem::file_type enumFileType;
     std::filesystem::path fsPath; //Non string type
 };
+
+
 class fileTreeStructure{
     public:
     fileTreeStructure(file root); //putting setup in constructor
@@ -170,6 +173,8 @@ class fileTreeStructure{
     std::string fileTypeToString(std::filesystem::file_type type);
     std::filesystem::file_type returnEnumTypeAt(int value);
     std::string getPathAt(int value);
+    size_t entrysInStruct();
+    void printAll();
     private:
     std::vector<file> storedFiles;
     
