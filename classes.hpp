@@ -29,12 +29,12 @@ class atomicNode {
         unsigned int getCount();
         char getValue();
         void setEndPointTrue();
-        bool getEndPoint();
-        void addChild();
-        atomicNode* findChild(char value);
+        bool getIsEndPoint();
+        void createChildNodeFor(char value);
+        atomicNode* findChildNode(char value);
         unsigned int getChildCount() const;
         void add(std::string word);
-
+        void printTree();
     private:
         char value;
         unsigned int count;

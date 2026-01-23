@@ -16,7 +16,7 @@
 
 
 
-
+//fast toLower function. may need it later
 char toLower(unsigned char value) {
     if(value >= 'A' && value <= 'Z') {
         return value + 32;
@@ -24,9 +24,6 @@ char toLower(unsigned char value) {
     return value;
 }
 
-char dontConvertToLowerCase(unsigned char value) {
-    return value;
-}
 
 //default constructor gets called on root
 atomicNode::atomicNode(){
@@ -34,14 +31,17 @@ atomicNode::atomicNode(){
     this->root = true;
 }
 
+//gets called on all children
 atomicNode::atomicNode(char value){
     this->value = value;
     this->root = false;
 }
-
+//increment the count for this endNode
 void atomicNode::increment() {
+    if(this->getIsEndPoint()){
     std::lock_guard<std::mutex> lock(mtx);
     ++count;
+    }
 }
 
 unsigned int atomicNode::getCount(){
@@ -59,16 +59,19 @@ void atomicNode::setEndPointTrue(){
     this->isEndPoint = true;
 }
 
-bool atomicNode::getEndPoint(){
+bool atomicNode::getIsEndPoint(){
     return this->isEndPoint;
 }
 
-void atomicNode::addChild(){
-    std::lock_guard<std::mutex> lock(mtx);
-    //push back new children
+//creates new child node for the current node
+void atomicNode::createChildNodeFor(char value){
+    std::lock_guard<std::mutex> lock(mtx); //lock current 
+    (this->children.emplace_back(atomicNode(value))); //create new node at vector pos
 }
 
-atomicNode* atomicNode::findChild(char value){
+
+//returns a node at requested position, if not returns nullptr
+atomicNode* atomicNode::findChildNode(char value){
     std::lock_guard<std::mutex> lock(mtx);
     for(auto& child : children){
         if(child->value == value){
@@ -81,21 +84,27 @@ atomicNode* atomicNode::findChild(char value){
 unsigned int atomicNode::getChildCount() const{
     std::lock_guard<std::mutex> lock(mtx);
     return children.size();
-
 }
 
 
+//adds entire word
 void atomicNode::add(std::string word){
-    //find out how to assign root 
+    
     for(int i = 0; i < word.length(); i++){
-        if(this->findChild(word[i]) != nullptr){ //if there is an existing child, contine
-            
+        if(NO_CAPITALS_FLAG){ //first check if capitals are allowed. If not, set to lower
+            word[i] = toLower(word[i]);
         }
+        if(this->findChildNode(word[i]) == nullptr){ //if there is an existing child, contine
+            createChildNodeFor(word[i]); //if not, create one here
+        }
+
     }
 }
 
+//print everything but root, and only if it is an endpoint
+void atomicNode::printTree(){
 
-
+}
 
 
 
