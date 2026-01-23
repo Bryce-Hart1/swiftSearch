@@ -9,7 +9,9 @@
 
 
 #include<iostream>
-
+#include<thread>
+#include<syncstream>
+#include<sstream>
 
 inline bool DEBUG_ACTIVE_FLAG;
 inline bool NO_CAPITALS_FLAG;
@@ -29,16 +31,13 @@ enum class OP_TYPE{
 };
 
 
+std::mutex logThreadErrorMtx; //used just for function logThreadError in constants.hpp
 
-class customExceptions : public std::exception{
-    private : std::string message;
-
-    public : 
-        customExceptions(const std::string& msg) : message(msg) {}
-        const char* what() const noexcept override {
-            return message.c_str();
-        }
-};
+//logs thread errors without interweaving. takes while exception as input
+void logThreadError(const std::exception& e){
+    std::lock_guard<std::mutex> lock(logThreadErrorMtx);
+    std::cerr << e.what() << std::endl;
+}
 
 
 void printDebug(std::string message){
