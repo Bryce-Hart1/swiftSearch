@@ -93,11 +93,10 @@ int main(int argc, char *argv[]){
 
 
     std::string argumentArr;
-    checkArgLength(argc, argv, argumentArr); //check intial Length
-    //if length is good, continue
-
-    tokenMain(argumentArr); 
-        printDebug("Debug mode is on");
+    checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
+    file root();
+    //tokenMain(argumentArr, root); 
+    printDebug("Debug mode is on");
     Timer mainWatch;
     mainWatch.start(); //start timer
 
@@ -106,7 +105,7 @@ int main(int argc, char *argv[]){
     //join threads
     //wait for threads to finish
     mainWatch.stop();
-    std::println("Opertation has finished in {}", mainWatch.timeInSeconds());
+    std::println("Opertation has finished in {}", mainWatch.readableTime());
 
 
     printDebug("Program sucessfully exited");

@@ -8,6 +8,7 @@
 #include<algorithm> 
 #include<functional>
 #include<queue>
+#include<cstdlib>
 
 
 
@@ -30,7 +31,8 @@ std::string toLowerCase(std::string str){
 }
 
 
-void assignTokenOne(std::string tokenOne){
+//Will throw true if there is an error assigning token. If this occurs, program will exit.
+bool assignTokenOne(std::string tokenOne){
     std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
     "#listnumbers", "#listwords", "#findcharacterfrequency", "findwordfreq"};
     tokenOne = toLowerCase(tokenOne);
@@ -49,7 +51,7 @@ void assignTokenOne(std::string tokenOne){
 
 }
 
-void assignTokenTwo(std::string root){
+bool assignTokenTwo(std::string root){
     
 }
 
@@ -79,13 +81,19 @@ void tokenMain(std::string input){
     while(stream >> temp){
         tokens.push_back(temp); //pushes all tokens into a vector
     }
+    if(assignTokenOne(tokens.at(0))){
+        printDebug("Error assigning token one, exiting");
+        std::exit(EXIT_FAILURE);
+    }
+    if(assignTokenTwo(tokens.at(1))){
+        printDebug("Error assigning token two (fileTreeStructure) exiting");
+        std::exit(EXIT_FAILURE);
+    }
     
 
 
-
-
     
-    
+
 
 }
 

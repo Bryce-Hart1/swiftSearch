@@ -1,5 +1,8 @@
 #pragma once
 
+#include "classes.hpp"
+#include "parse.hpp"
+
 #include <string> 
 #include <mutex>
 #include <filesystem>
@@ -9,11 +12,12 @@
 
 std::string toLowerCase(std::string str);
 
-void assignTokenOne(std::string tokenOne);
+bool assignTokenOne(std::string tokenOne);
+bool assignTokenTwo(std::string rootOfFiles);
 
 void justifyFlags(std::vector<std::string> flagsDetected);
 
 
-void tokenMain(std::string input);
+void tokenMain(std::string input, file &root);
 
 
