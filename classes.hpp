@@ -127,10 +127,9 @@ class Timer{
         void start();
         void stop();
         double timeInMilliseconds() const;
-        double timeInSeconds() const ;
         void reset();
         void printCurrentTime() const ;
-
+        std::string readableTime();
     private:
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
     std::chrono::time_point<std::chrono::high_resolution_clock> endTime;

@@ -13,7 +13,7 @@
 #include <sstream>
 #include <functional>
 #include <fstream>
-
+#include <cmath>
 
 
 //fast toLower function. may need it later
@@ -126,7 +126,7 @@ char atomCharPair::getValue(){
 
 /**
  * @class characterBucket - stores counts of all characters found
- * @details does a O(1) opertation to add characters to buckets to print the count of them later
+ * @details does a opertation to add characters to buckets to print the count of them later
  * only will add ascii values to buckets (extended ascii: 0 - 255)
  * 
  */
@@ -199,22 +199,29 @@ double Timer::timeInMilliseconds() const {
     return std::chrono::duration<double, std::milli>(end - startTime).count();
 }
     
-double Timer::timeInSeconds() const {
-    return timeInMilliseconds() / 1000.0;
+
+void Timer::reset() {
+    startTime = std::chrono::high_resolution_clock::now();
+    running = true;
 }
     
-    void Timer::reset() {
-        startTime = std::chrono::high_resolution_clock::now();
-        running = true;
+void Timer::printCurrentTime() const {
+    return;
+}
+  
+//returns a string type in a Digits - measurement format. no spacing. up to minutes
+std::string Timer::readableTime(){
+    long double timeElapsed = (long double)this->timeInMilliseconds();
+    if(timeElapsed < 1000.0){ //less than one second (1000 milliseconds)
+        return (std::to_string(timeElapsed) + " ms");
     }
-    
-    void Timer::printCurrentTime() const {
-        return;
+    timeElapsed /= 1000; //now in seconds format
+    if(timeElapsed < 60){ //if less than a minute
+        return (std::to_string(timeElapsed) + " s");
     }
-    
-    std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
-    std::chrono::time_point<std::chrono::high_resolution_clock> endTime;
-    bool running = false;
+    timeElapsed /= 60; //now in minutes
+    return (std::to_string(timeElapsed) + " min");
+}
 
 
 
@@ -256,6 +263,7 @@ std::filesystem::file_type file::getEnumType(){
     return (this->enumFileType);
 }
 
+//returns path type
 std::filesystem::path file::getfsPath(){
     return(this->fsPath);
 }
@@ -263,23 +271,35 @@ std::filesystem::path file::getfsPath(){
 
 
 
+/**
+ * @class fileTreeStructure
+ * is not actually a tree, is a 1d vector that has no ordered values
+ * to create a fileTree, a given root is scanned using file 
+ */
+
+//creates whole treee from the root file given
 fileTreeStructure::fileTreeStructure(file root){
     
 }
 
+//returns string of name of individal file
 std::string fileTreeStructure::getNameAt(int value){
     return (this->storedFiles.at(value).getFileName());
 }
 
+
+//returns enum, not string type
 std::filesystem::file_type fileTreeStructure::returnEnumTypeAt(int value){
     return (this->storedFiles.at(value).getEnumType());
 }
 
 
-
+//returns string type from path type
 std::string fileTreeStructure::getPathAt(int value){
-    return (this->storedFiles.at(value).getfsPath());
+    return (this->storedFiles.at(value).getfsPath().generic_string());
 }
+
+//converts enum type to a readable string
 std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type) {
 
     switch(type) {
@@ -296,6 +316,8 @@ std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type)
     }
 }
 
+
+//creates a queue of nodes to traverse based off of the orginal vector
 std::queue<std::string> fileTreeStructure::createStringQueue(){
     std::queue<std::string> names;
     for(file f : this->storedFiles){
