@@ -30,17 +30,16 @@ class atomicNode {
         char getValue();
         void setEndPointTrue();
         bool getIsEndPoint();
-        void createChildNodeFor(char value);
         atomicNode* findChildNode(char value);
         unsigned int getChildCount() const;
         void add(std::string word);
-        void printTree();
+        void printSet(std::string prefix);
     private:
         char value;
         unsigned int count;
         mutable std::mutex mtx;
         bool isEndPoint;
-        bool root;
+        bool isRoot;
         std::vector<std::unique_ptr<atomicNode>> children;
 
 };
@@ -152,13 +151,15 @@ class file{
     std::filesystem::file_type getEnumType();
     std::filesystem::path getfsPath();
     std::string filePathToStr();
+    void setFileName(std::string name);
+    void setFileSize(std::uintmax_t size);
+    void setEnumType(std::filesystem::file_type type);
+    void setPath(std::filesystem::path path);
     private:
     std::string fileName;
     std::uintmax_t sizeOfFile;
     std::filesystem::file_type enumFileType;
     std::filesystem::path fsPath; //Non string type
-    //maybe last edit time later
-
 };
 class fileTreeStructure{
     public:

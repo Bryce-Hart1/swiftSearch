@@ -28,13 +28,13 @@ char toLower(unsigned char value) {
 //default constructor gets called on root
 atomicNode::atomicNode(){
     this->value = '*';
-    this->root = true;
+    this->isRoot = true;
 }
 
 //gets called on all children
 atomicNode::atomicNode(char value){
     this->value = value;
-    this->root = false;
+    this->isRoot = false;
 }
 //increment the count for this endNode
 void atomicNode::increment() {
@@ -63,12 +63,6 @@ bool atomicNode::getIsEndPoint(){
     return this->isEndPoint;
 }
 
-//creates new child node for the current node
-void atomicNode::createChildNodeFor(char value){
-    std::lock_guard<std::mutex> lock(mtx); //lock current 
-    (this->children.emplace_back(atomicNode(value))); //create new node at vector pos
-}
-
 
 //returns a node at requested position, if not returns nullptr
 atomicNode* atomicNode::findChildNode(char value){
@@ -89,21 +83,40 @@ unsigned int atomicNode::getChildCount() const{
 
 //adds entire word
 void atomicNode::add(std::string word){
+    atomicNode* current = this;
     
     for(int i = 0; i < word.length(); i++){
         if(NO_CAPITALS_FLAG){ //first check if capitals are allowed. If not, set to lower
             word[i] = toLower(word[i]);
         }
-        if(this->findChildNode(word[i]) == nullptr){ //if there is an existing child, contine
-            createChildNodeFor(word[i]); //if not, create one here
+        std::lock_guard<std::mutex> lock(current->mtx);
+
+        atomicNode* thisChild = nullptr; 
+        for(auto& c : current->children){ //check all children in vector
+            if(c->getValue() == word[i]){
+                thisChild = c.get();
+                break;
+            }
         }
 
+
+        if(thisChild == nullptr){ //if none was found, assignment doesnt change and we create one here
+            children.emplace_back(std::make_unique<atomicNode>(value));
+            //children.push_back(std::make_unique<atomicNode>(value)); might be worth testing but since both are created inside make_unique idk
+        }
+        current = thisChild;
     }
+    current->setEndPointTrue();
 }
 
 //print everything but root, and only if it is an endpoint
-void atomicNode::printTree(){
-
+void atomicNode::printSet(std::string prefix){
+    if(!this->isEndPoint && !this->isRoot){
+        std::println("{} : {}", prefix, this->count);
+    }
+    for(auto& child : children){ //for all children
+        child->printSet(prefix + child->value);
+    }
 }
 
 
@@ -266,6 +279,19 @@ std::filesystem::file_type file::getEnumType(){
 //returns path type
 std::filesystem::path file::getfsPath(){
     return(this->fsPath);
+}
+
+void file::setFileName(std::string name){
+    this->fileName = name;
+}
+void file::setFileSize(std::uintmax_t size){
+    this->sizeOfFile = size;
+}
+void file::setEnumType(std::filesystem::file_type type){
+    this->enumFileType = type;
+}
+void file::setPath(std::filesystem::path path){
+    this->fsPath = path;
 }
 
 
