@@ -5,41 +5,10 @@
 
 #include<unistd.h>
 
-/*
-Possible operations:
-#d collect instances of term
-#df print every instance of term
-#createList builds a file of all terms found in the files
-three options 
-default sort (no token passed first of trie)
-> greatest amount to least amount 
-< least amount to greatest amount
-#createChar builds a file that shows amount of characters found in the files 
 
 
-
-
-format of command -
-#operation fileToparse
-
-
-
-*/
-
-
-
-
-
-
-
-/**
- * @details added this to give users a way to get used to the program and learn commands
- * 
- */
 void printInfo(){
     using namespace std;
-
-
     println("Please input a file to parse in the following format");
     println("#sortedList @fileName -flag");
     sleep(1);
@@ -53,10 +22,6 @@ void printInfo(){
     println("findWordFreq - finds the frequency of all words in the list");
     sleep(1);
     println("If you would still like to contine, please enter this command now");
-
-    
-    
-
 }
 
 void checkArgLength(int argc, char *argv[], std::string &argumentArr){
@@ -94,7 +59,7 @@ int main(int argc, char *argv[]){
 
     std::string argumentArr;
     checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
-    file root();
+    file root;
     //tokenMain(argumentArr, root); 
     printDebug("Debug mode is on");
     Timer mainWatch;
