@@ -31,16 +31,16 @@ enum class OP_TYPE{
 };
 
 
-std::mutex logThreadErrorMtx; //used just for function logThreadError in constants.hpp
+inline std::mutex logThreadErrorMtx; //used just for function logThreadError in constants.hpp
 
 //logs thread errors without interweaving. takes while exception as input
-void logThreadError(const std::exception& e){
+inline void logThreadError(const std::exception& e){
     std::lock_guard<std::mutex> lock(logThreadErrorMtx);
     std::cerr << e.what() << std::endl;
 }
 
 
-void printDebug(std::string message){
+inline void printDebug(std::string message){
     if(DEBUG_ACTIVE_FLAG){
         std::string debugStatement = "DEBUG ~~ ";
         std::println("{} {}", debugStatement, message);
