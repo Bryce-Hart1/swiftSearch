@@ -15,7 +15,7 @@
 
 inline bool DEBUG_ACTIVE_FLAG;
 inline bool NO_CAPITALS_FLAG;
-
+inline bool SHOW_THREADTIME_FLAG;
 
 
 enum class OP_TYPE{

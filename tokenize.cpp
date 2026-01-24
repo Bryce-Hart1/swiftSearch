@@ -5,7 +5,6 @@
 #include<filesystem>
 #include<vector>
 #include<sstream>
-#include<algorithm> 
 #include<functional>
 #include<queue>
 #include<cstdlib>
@@ -51,19 +50,41 @@ bool assignTokenOne(std::string tokenOne){
     return false; //not yet finished
 }
 
-bool assignTokenTwo(std::string root){
+
+
+/**
+ * @details returns true for errors - trys to create file tree system and returns root back
+ * in a sucessful attempt
+ */
+
+bool assignTokenTwo(file &root){
     
     return false; //not emplemented
 }
 
-
+/**
+ * -debug sets all debug messages to on
+ *  -caps can only be called on char or string 
+ *  -threadtime prints time that thread exits, along with file scanned
+ *  for now implementation returns no signs that a flag failed to set, may change later
+ */
 void justifyFlags(std::vector<std::string> flagsDetected){
-
+    std::array<std::string, 3> posFlag = {"-debug", "-caps", "-threadTime"}; 
+    for(std::string flag : flagsDetected){
+        if(posFlag[0] == flag){ //debug
+            DEBUG_ACTIVE_FLAG = true;
+        }
+        if(posFlag[1] == flag){
+            NO_CAPITALS_FLAG = true;
+        }
+        if(posFlag[2] == flag){
+            SHOW_THREADTIME_FLAG = true;
+        }
+    }
 }
 
 /**
  * @brief breaks down command line from main()
- * 
  * @details breaks down several parts:
  * 1st token: #Opertation tag followed by opertation
  * 2nd token: filepath 
@@ -86,7 +107,9 @@ void tokenMain(std::string input, file &root){
         printDebug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }
-    if(assignTokenTwo(tokens.at(1))){
+    
+    file root(tokens.at(1));
+    if(assignTokenTwo(std::ref(root))){
         printDebug("Error assigning token two (fileTreeStructure) exiting");
         std::exit(EXIT_FAILURE);
     }

@@ -145,7 +145,7 @@ class Timer{
 class file{
     public:
     file();
-    file(std::string name, bool assignedAsRoot);
+    file(std::string name); //for assigning new files
     std::string getFileName();
     unsigned long long int getFileSize();
     std::string returnReadableSize();

@@ -238,14 +238,21 @@ std::string Timer::readableTime(){
 
 
 
+
+
+
 file::file(){
     this->fileName = "Unassigned";
 }
 
-
-file::file(std::string name, bool assignedAsRoot){
-    this->fileName = name;
-    this->fsPath = std::filesystem::path(name);
+//root shoul;dnt matter with new design
+file::file(std::string name){
+    try{
+        this->fileName = name;
+        this->fsPath = std::filesystem::path(name);
+    }catch(std::exception e){
+        std::cerr << e.what() << std::endl;
+    }
 }
 
 
