@@ -180,9 +180,9 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
             }case OP_TYPE::CHAR_FREQ: {
                 characterBucket bucketArr(NO_CAPITALS_FLAG);
                 while(!fileNames.empty()){
-                    std::thread temp(charFreq, fileNames.front(), bucketArr);
+                    threadVector.emplace_back(charFreq, fileNames.front(), std::ref(bucketArr));
                     fileNames.pop();
-                    threadVector.push_back(temp);
+
                 }
                 std::string charMes = ("queue sucessfully finished for charFreq vector size is" + std::to_string(threadVector.size()));
                 printDebug(charMes);
@@ -198,7 +198,7 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
             //not yet implemented
             break;
             }case OP_TYPE::FIND_ALL: {
-                std::thread temp(findAll);
+                //std::thread temp(findAll); copy for what we have above, ref class by ref and emplace back
             break;
             }case OP_TYPE::FIND_ONE: {
             //find one instance of string and return

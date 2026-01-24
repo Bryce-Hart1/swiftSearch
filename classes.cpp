@@ -253,6 +253,10 @@ std::string file::getFileName(){
     return (this->fileName);
 }
 
+std::string file::filePathToStr(){
+    return (this->fsPath.string());
+}
+
 //returns size in bytes
 unsigned long long int file::getFileSize(){
     return static_cast<unsigned long long int>(this->sizeOfFile);
@@ -380,7 +384,7 @@ size_t fileTreeStructure::entrysInStruct(){
 //only prints name of file and path. for debug 
 void fileTreeStructure::printAll(){
     for(auto& f : this->storedFiles){
-        std::println(f.getFileName());
+        //std::println(f.getFileName());
         std::println("path: {}", f.filePathToStr());
     }
 }

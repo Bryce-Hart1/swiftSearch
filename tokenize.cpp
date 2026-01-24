@@ -48,11 +48,12 @@ bool assignTokenOne(std::string tokenOne){
         printDebug(("Token One is invalid and value is " + tokenOne));
     }
 
-
+    return false; //not yet finished
 }
 
 bool assignTokenTwo(std::string root){
     
+    return false; //not emplemented
 }
 
 
@@ -70,7 +71,7 @@ void justifyFlags(std::vector<std::string> flagsDetected){
  */
 
 
-void tokenMain(std::string input){
+void tokenMain(std::string input, file &root){
     std::vector<std::string> tokens;
     const int maxTokenLimit = 10;
     std::string fileToLook;
