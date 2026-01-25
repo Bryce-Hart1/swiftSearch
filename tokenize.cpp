@@ -50,18 +50,6 @@ bool assignTokenOne(std::string tokenOne){
 }
 
 
-
-/**
- * @details returns true for errors - trys to create file tree system and returns root back
- * in a sucessful attempt
- */
-
-bool assignTokenTwo(file &root, fileTreeStructure &newStruct){
-
-    
-    return false; //not emplemented
-}
-
 /**
  * -debug sets all debug messages to on
  *  -caps can only be called on char or string 
@@ -92,7 +80,7 @@ void justifyFlags(std::vector<std::string> flagsDetected){
  */
 
 
-void tokenMain(std::string input, file &root){
+fileTreeStructure tokenize(std::string input, file &root, fileTreeStructure &structure){
     std::vector<std::string> tokens;
     const int maxTokenLimit = 10;
     std::string fileToLook;
@@ -107,17 +95,15 @@ void tokenMain(std::string input, file &root){
         printDebug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }
-    //empty struct
-    file root(tokens.at(1));
-    if(assignTokenTwo(std::ref(root))){
-        printDebug("Error assigning token two (fileTreeStructure) exiting");
-        std::exit(EXIT_FAILURE);
+    
+    try{
+       //structure.setRoot(&root); //set structure root to root file
+
+    }catch(std::exception e){
+        logThreadError(e);
     }
-    
 
 
-    
-
-
+    return structure;
 }
 

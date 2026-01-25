@@ -12,7 +12,6 @@
 
 
 char toLower(unsigned char value);
-char dontConvertToLowerCase(unsigned char value);
 
 
 /**
@@ -81,30 +80,15 @@ private:
 
 
 class numberList{
-        //keeps track of the type set by the user
-        enum numberTypeEnum{
-        TYPE_NOT_SET,
-        TYPE_DOUBLE,
-        TYPE_INT};
-            //might need to use a mutex?
-    
-    private:
-    bool isIntegerList;
-    bool needsRounded;
-    std::vector<long double> mainListDouble;
-    std::vector<long long int> mainListInt;
-        
-
-
     public:
-    numberTypeEnum type = TYPE_NOT_SET;
-    numberList();
-    numberList(bool isIntegerList);
-    unsigned int getSize();
-    bool listNeedsRounded();
-    long long int roundList(bool roundUp);
-    void sortList();
-    void grabFromThreads(); 
+    numberList(bool isDoubleList);
+    void add (auto value);
+    //to be completed.
+
+
+
+
+
 };
 
 
