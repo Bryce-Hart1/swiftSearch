@@ -44,9 +44,10 @@ bool assignTokenOne(std::string tokenOne){
     }
     if(foundAt == -1){
         printDebug(("Token One is invalid and value is " + tokenOne));
+        return true;
     }
 
-    return false; //not yet finished
+    return false; 
 }
 
 
@@ -77,10 +78,13 @@ void justifyFlags(std::vector<std::string> flagsDetected){
  * 1st token: #Opertation tag followed by opertation
  * 2nd token: filepath 
  * 3rd token: debug mode and other flags
+ * returns fileTreeStructure to main. sets flags and breaks down type of opertation to do
+ * @param input string of tokens from user, unprocessed
+ * @param root reference of root to use to create a fileTreeStructure
+ * @returns a filetree structure if valid, and if not returns a nullptr
  */
 
-
-fileTreeStructure tokenize(std::string input, file &root, fileTreeStructure &structure){
+fileTreeStructure* tokenize(std::string input){
     std::vector<std::string> tokens;
     const int maxTokenLimit = 10;
     std::string fileToLook;
@@ -95,15 +99,26 @@ fileTreeStructure tokenize(std::string input, file &root, fileTreeStructure &str
         printDebug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }
+
+    //sets some global booleans for tokens
+    std::vector<std::string> flags;
+    for(int i = 2; i < tokens.size(); i++){
+        flags.push_back(tokens.at(i));
+    }
+    justifyFlags(flags); //sets global values here
+
+    file root(tokens.at(1)); //root fileName should be found here
+
     
     try{
-       //structure.setRoot(&root); //set structure root to root file
+       fileTreeStructure structure(root);
+        return &structure;
 
     }catch(std::exception e){
-        logThreadError(e);
+        std::cerr << e.what() << std::endl;
     }
+    printDebug("Object fileTreeStructure failed to create.");
+    return nullptr;
 
-
-    return structure;
 }
 
