@@ -13,7 +13,7 @@
 std::string toLowerCase(std::string str);
 
 bool assignTokenOne(std::string tokenOne);
-bool assignTokenTwo(std::string rootOfFiles);
+bool assignTokenTwo(file &rootOfFiles);
 
 void justifyFlags(std::vector<std::string> flagsDetected);
 

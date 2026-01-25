@@ -57,7 +57,8 @@ bool assignTokenOne(std::string tokenOne){
  * in a sucessful attempt
  */
 
-bool assignTokenTwo(file &root){
+bool assignTokenTwo(file &root, fileTreeStructure &newStruct){
+
     
     return false; //not emplemented
 }
@@ -107,7 +108,7 @@ void tokenMain(std::string input, file &root){
         printDebug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }
-    
+    //empty struct
     file root(tokens.at(1));
     if(assignTokenTwo(std::ref(root))){
         printDebug("Error assigning token two (fileTreeStructure) exiting");
