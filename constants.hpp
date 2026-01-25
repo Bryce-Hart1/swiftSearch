@@ -43,7 +43,7 @@ inline void logThreadError(const std::exception& e){
 inline void printDebug(std::string message){
     if(DEBUG_ACTIVE_FLAG){
         std::string debugStatement = "DEBUG ~~ ";
-        std::println("{} {}", debugStatement, message);
+        std::println(std::cout, "{} {}", debugStatement, message);
 
     }
 }

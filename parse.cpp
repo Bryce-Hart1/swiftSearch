@@ -15,7 +15,7 @@
 
 
 void info(file x){
-    std::println("File name: {} | File size: {}", x.getFileName(), x.returnReadableSize());
+    std::println(std::cout,"File name: {} | File size: {}", x.getFileName(), x.returnReadableSize());
 }
 
 

@@ -43,7 +43,6 @@ bool assignTokenOne(std::string tokenOne){
         }
     }
     if(foundAt == -1){
-        std::println("Operation is not valid. Make sure it starts with # and is one word.");
         printDebug(("Token One is invalid and value is " + tokenOne));
     }
 

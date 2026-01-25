@@ -9,19 +9,19 @@
 
 void printInfo(){
     using namespace std;
-    println("Please input a file to parse in the following format");
-    println("#sortedList @fileName -flag");
+    println(cout,"Please input a file to parse in the following format");
+    println(cout,"#sortedList @fileName -flag");
     sleep(1);
-    println("possible # operations: ");
+    println(cout,"possible # operations: ");
     sleep(1);
-    println(" #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
-    println(" #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
-    println("#listNumbers - takes all numbers and sorts them into a file in the order they appear");
-    println("#listWords - takes all the words in the file and displays them in the order they appear.");
-    println("#findCharacterFrequency - finds the frequency of all values");
-    println("findWordFreq - finds the frequency of all words in the list");
+    println(cout," #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
+    println(cout," #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
+    println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
+    println(cout,"#listWords - takes all the words in the file and displays them in the order they appear.");
+    println(cout,"#findCharacterFrequency - finds the frequency of all values");
+    println(cout,"findWordFreq - finds the frequency of all words in the list");
     sleep(1);
-    println("If you would still like to contine, please enter this command now");
+    println(cout,"If you would still like to contine, please enter this command now");
 }
 
 void checkArgLength(int argc, char *argv[], std::string &argumentArr){
@@ -30,7 +30,7 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
         const int numberOfTries = 5;
         int currentCount = 0;
         std::string newStr;
-        std::println("No command detected.");
+        std::println(std::cout,"No command detected.");
         printInfo(); //print list once before entering tries
         std::getline(std::cin, newStr); //if this is still invalid, we can clean it up later so not to have redundant token breakup
         argumentArr = newStr;
@@ -70,7 +70,7 @@ int main(int argc, char *argv[]){
     //join threads
     //wait for threads to finish
     mainWatch.stop();
-    std::println("Opertation has finished in {}", mainWatch.readableTime());
+    std::println(std::cout, "Opertation has finished in {}", mainWatch.readableTime());
 
 
     printDebug("Program sucessfully exited");

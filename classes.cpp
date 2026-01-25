@@ -1,4 +1,4 @@
-#include "classes.hpp"
+ #include "classes.hpp"
 #include "constants.hpp"
 
 
@@ -112,7 +112,7 @@ void atomicNode::add(std::string word){
 //print everything but root, and only if it is an endpoint
 void atomicNode::printSet(std::string prefix){
     if(!this->isEndPoint && !this->isRoot){
-        std::println("{} : {}", prefix, this->count);
+        std::println(std::cout,"{} : {}", prefix, this->count);
     }
     for(auto& child : children){ //for all children
         child->printSet(prefix + child->value);
@@ -158,7 +158,7 @@ void characterBucket::printAll(){
             const int dist = 32; //distance from A to a in ascii
             if(i < 'A' && 'Z' < i){//better A and Z print nothing
                 if('a' <= i && i <= 'z'){ //between a and z, add counts from the capitals
-                    std::println("{}: count: {}", getValueAt(i), (getCounterAt(i) + getCounterAt(i-dist)) );
+                    std::println(std::cout, "{}: count: {}", getValueAt(i), (getCounterAt(i) + getCounterAt(i-dist)) );
                 }
             }
         }
@@ -392,6 +392,6 @@ size_t fileTreeStructure::entrysInStruct(){
 void fileTreeStructure::printAll(){
     for(auto& f : this->storedFiles){
         //std::println(f.getFileName());
-        std::println("path: {}", f.filePathToStr());
+        std::println(std::cout, "path: {}", f.filePathToStr());
     }
 }
