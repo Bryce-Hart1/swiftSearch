@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(MyProject VERSION 1.0 LANGUAGES CXX)
+project(swiftSearch VERSION 1.0 LANGUAGES CXX)
 
 # made for c++23
 set(CMAKE_CXX_STANDARD 23)
