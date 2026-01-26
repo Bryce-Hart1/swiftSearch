@@ -59,16 +59,13 @@ int main(int argc, char *argv[]){
 
     std::string argumentArr;
     checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
-    file root;
-    //tokenMain(argumentArr, root); 
-    printDebug("Debug mode is on");
+    file root; 
     Timer mainWatch;
     mainWatch.start(); //start timer
-
-    //set a enum of the operation, with the root already set.
-    //fileTreeNode root(rootname); make tree
-    //join threads
-    //wait for threads to finish
+    fileTreeStructure fileStruct = *tokenize(argumentArr);
+    printDebug("Debug mode is on");
+    std::vector<std::thread> threadContainer;
+    assignOperation(threadContainer, operationTypeOfParse, fileStruct.createStringQueue());
     mainWatch.stop();
     std::println(std::cout, "Opertation has finished in {}", mainWatch.readableTime());
 

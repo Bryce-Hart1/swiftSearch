@@ -1,18 +1,12 @@
 #include"tokenize.hpp"
 #include"constants.hpp"
 
-#include<mutex>
 #include<filesystem>
 #include<vector>
 #include<sstream>
 #include<functional>
 #include<queue>
-#include<cstdlib>
 
-
-
-//Node can function independant of fileTree, but we cannot start a new fileTree without a root
-//I also need the tokenizer to catch the missing file name BEFORE we hit the stage where we set up a tree.
 
 /**
  * @param str string to convert to lowercase
@@ -106,7 +100,6 @@ fileTreeStructure* tokenize(std::string input){
         flags.push_back(tokens.at(i));
     }
     justifyFlags(flags); //sets global values here
-
     file root(tokens.at(1)); //root fileName should be found here
 
     

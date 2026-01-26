@@ -161,7 +161,6 @@ try{
 
 void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<std::string> fileNames){
 
-        std::thread thread;
         switch(opertation){
             case OP_TYPE::INFO :{
 

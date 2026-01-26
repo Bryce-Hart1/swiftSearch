@@ -30,7 +30,7 @@ enum class OP_TYPE{
     FIND_ONE
 };
 
-
+inline OP_TYPE operationTypeOfParse; //global indicator for operatation to be done on files
 inline std::mutex logThreadErrorMtx; //used just for function logThreadError in constants.hpp
 
 //logs thread errors without interweaving. takes while exception as input
