@@ -40,7 +40,7 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
         }
     }
     std::string debug = ("ArgArr is " + argumentArr);
-    printDebug(debug);
+    print::Debug(debug);
 
 }
 
@@ -63,12 +63,12 @@ int main(int argc, char *argv[]){
     Timer mainWatch;
     mainWatch.start(); //start timer
     fileTreeStructure fileStruct = *tokenize(argumentArr);
-    printDebug("Debug mode is on");
+    print::Debug("Debug mode is on");
     std::vector<std::thread> threadContainer;
     assignOperation(threadContainer, operationTypeOfParse, fileStruct.createStringQueue());
     mainWatch.stop();
     std::println(std::cout, "Opertation has finished in {}", mainWatch.readableTime());
 
 
-    printDebug("Program sucessfully exited");
+    print::Debug("Program sucessfully exited");
 }

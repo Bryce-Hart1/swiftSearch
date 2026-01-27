@@ -37,7 +37,7 @@ bool assignTokenOne(std::string tokenOne){
         }
     }
     if(foundAt == -1){
-        printDebug(("Token One is invalid and value is " + tokenOne));
+        print::Debug(("Token One is invalid and value is " + tokenOne));
         return true;
     }
 
@@ -52,16 +52,20 @@ bool assignTokenOne(std::string tokenOne){
  *  for now implementation returns no signs that a flag failed to set, may change later
  */
 void justifyFlags(std::vector<std::string> flagsDetected){
+    print::Debug("justifyFlags() entered");
     std::array<std::string, 3> posFlag = {"-debug", "-caps", "-threadTime"}; 
     for(std::string flag : flagsDetected){
         if(posFlag[0] == flag){ //debug
             DEBUG_ACTIVE_FLAG = true;
+            print::Debug("debug flag set.");
         }
         if(posFlag[1] == flag){
             NO_CAPITALS_FLAG = true;
+            print::Debug("capitals flag set");
         }
         if(posFlag[2] == flag){
             SHOW_THREADTIME_FLAG = true;
+            print::Debug("show threads set");
         }
     }
 }
@@ -79,6 +83,7 @@ void justifyFlags(std::vector<std::string> flagsDetected){
  */
 
 fileTreeStructure* tokenize(std::string input){
+    print::Debug("tokenize() entered");
     std::vector<std::string> tokens;
     const int maxTokenLimit = 10;
     std::string fileToLook;
@@ -88,9 +93,14 @@ fileTreeStructure* tokenize(std::string input){
     std::string temp;
     while(stream >> temp){
         tokens.push_back(temp); //pushes all tokens into a vector
+        std::string message = "tokens pushed back: values are: ";
+        for(std::string t : tokens){
+            message += t + " |";
+        }
+        print::Debug(message);
     }
     if(assignTokenOne(tokens.at(0))){
-        printDebug("Error assigning token one, exiting");
+        print::Debug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }
 
@@ -104,13 +114,13 @@ fileTreeStructure* tokenize(std::string input){
 
     
     try{
-       fileTreeStructure structure(root);
-        return &structure;
+       fileTreeStructure* structure = new fileTreeStructure(root);
+        return structure;
 
     }catch(std::exception e){
         std::cerr << e.what() << std::endl;
     }
-    printDebug("Object fileTreeStructure failed to create.");
+    print::Debug("Object fileTreeStructure failed to create.");
     return nullptr;
 
 }

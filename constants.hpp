@@ -1,7 +1,5 @@
 /**
- * @brief holds debug state and all shared librarys
- * 
- * 
+ * @brief holds Enum of operation type, and possible flags and print functions
  */
 
 
@@ -31,19 +29,30 @@ enum class OP_TYPE{
 };
 
 inline OP_TYPE operationTypeOfParse; //global indicator for operatation to be done on files
-inline std::mutex logThreadErrorMtx; //used just for function logThreadError in constants.hpp
-
-//logs thread errors without interweaving. takes while exception as input
-inline void logThreadError(const std::exception& e){
-    std::lock_guard<std::mutex> lock(logThreadErrorMtx);
-    std::cerr << e.what() << std::endl;
-}
+inline std::mutex printMutex; //the global mutex for all print functions to insure synced printing
 
 
-inline void printDebug(std::string message){
+namespace print{
+
+inline void Debug(std::string message){
     if(DEBUG_ACTIVE_FLAG){
-        std::string debugStatement = "DEBUG ~~ ";
+        std::lock_guard<std::mutex> lock(printMutex);
+        std::string debugStatement = "DEBUG || ";
         std::println(std::cout, "{} {}", debugStatement, message);
 
     }
+}
+
+//logs thread errors without interweaving. takes while exception as input
+inline void Error(const std::exception& e){
+    std::lock_guard<std::mutex> lock(printMutex);
+    std::cerr << "EXCEPTION :: " <<  e.what() << std::endl;
+}
+
+inline void Thread(std::string message, int threadNumber){
+    std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
+    std::string threadStatement = ("THREAD [" + std::to_string(threadNumber)) + "]~~ ";
+    std::println(std::cout, "{} {} ", threadStatement, message);
+}
+
 }

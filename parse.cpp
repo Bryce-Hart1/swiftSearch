@@ -65,8 +65,8 @@ void findAll(std::string filename, std::string keyWord){
 
     }catch(std::filesystem::filesystem_error e){
         std::string error = e.what();
-        printDebug("Error opening file");
-        printDebug(error);
+        print::Debug("Error opening file");
+        print::Debug(error);
     }
 }
     
@@ -114,7 +114,7 @@ void wordFreq(std::string fileName, atomicNode root){
         }
     }catch(exception e){
         string error = e.what();
-        printDebug(error);
+        print::Debug(error);
     }
 }
 
@@ -126,7 +126,7 @@ void wordFreq(std::string fileName, atomicNode root){
  * 
  */
 void charFreq(std::string fileName, characterBucket &cBucket){
-
+//print::Thread("Thread has entered charFreq", )
 
 try{
     std::ifstream input(fileName);
@@ -139,10 +139,8 @@ try{
     }
 
 }catch(std::exception e){
-    std::string error = e.what();
-    printDebug(error);
+    print::Error(e);
     }
-
 
 }
 
@@ -160,7 +158,7 @@ try{
 
 
 void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<std::string> fileNames){
-
+    print::Debug("assignOperation() entered.");
         switch(opertation){
             case OP_TYPE::INFO :{
 
@@ -184,7 +182,7 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
 
                 }
                 std::string charMes = ("queue sucessfully finished for charFreq vector size is" + std::to_string(threadVector.size()));
-                printDebug(charMes);
+                print::Debug(charMes);
                 joinThreads(threadVector); //seperate join function
                 bucketArr.printAll(); //print with method
 
@@ -213,13 +211,14 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
 
 
 void joinThreads(std::vector<std::thread>& threadVec){
+    print::Debug("joinThreads() Entered");
     for(std::thread& thread : threadVec){
         try{
             thread.join();
         }catch(std::exception e){
             std::string error = e.what();
-            printDebug(error);
+            print::Debug(error);
         }
     }
-    printDebug("Threads have finished");
+    print::Debug("Threads have finished");
 }
