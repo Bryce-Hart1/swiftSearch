@@ -1,4 +1,4 @@
- #include "classes.hpp"
+#include "classes.hpp"
 #include "constants.hpp"
 
 
@@ -190,7 +190,45 @@ void simpleCount::incrementBy(int amount){
     this->count.fetch_add(amount);
 }
 
+/**
+ * @class numberList
+ * wraps over std::vector and just picks between a long long int or a long double
+ */
+numberList::numberList(bool isIntList){
+    if(isIntList){
+        this->setType(LIST_TYPE::INT);
+    }else{
+        this->setType(LIST_TYPE::DOUBLE);
+    }
+}
+void numberList::add(auto data){
+    if(this->isIntTypeList()){
+        data = static_cast<long long int>(data); //just to be safe
+        this->iList.push_back(data);
+    }else{
+        data = static_cast<long double>(data);
+        this->dList.push_back(data);
+    }
+}
 
+void numberList::setType(LIST_TYPE x){
+    this->type = x;
+}
+
+bool numberList::isIntTypeList(){
+    if(this->type == LIST_TYPE::INT){
+        return true;
+    }
+    return false;
+}
+
+std::vector<long long int> numberList::sendIntVector(){
+    return this->iList;
+}
+
+std::vector<long double> numberList::sendDoubleVector(){
+    return this->dList;
+}
 
 /**
  * @class timer - this class keeps up with the clock to document how long an opertation takes

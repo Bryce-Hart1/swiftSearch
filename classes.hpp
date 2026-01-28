@@ -43,10 +43,6 @@ class atomicNode {
 
 };
 
-class atomicIntNode : public atomicNode{
-
-};
-
 
 /**
  * @class pairs with character bucket
@@ -78,19 +74,23 @@ private:
     bool ignoreCaps;
 };
 
-
 class numberList{
-    public:
-    numberList(bool isDoubleList);
-    void add (auto value);
-    //to be completed.
-
-
-
-
-
+    enum class LIST_TYPE{
+        UNSET,
+        DOUBLE,
+        INT
+    };
+    numberList(bool isIntList);
+    std::vector<long double> sendDoubleVector();
+    std::vector<long long int> sendIntVector();
+    void add(auto data);
+    void setType(LIST_TYPE);
+    bool isIntTypeList();
+    private:
+    LIST_TYPE type;
+    std::vector<long double> dList;
+    std::vector<long long int> iList;
 };
-
 
 class simpleCount{
     public:
