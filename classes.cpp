@@ -375,10 +375,10 @@ std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type)
 
 
 //creates a queue of nodes to traverse based off of the orginal vector
-std::queue<std::string> fileTreeStructure::createStringQueue(){
-    std::queue<std::string> names;
+std::queue<file> fileTreeStructure::createFileQueue(){
+    std::queue<file> names; 
     for(file f : this->storedFiles){
-        names.push(f.getFileName());
+        names.push(f);
     }
     return names;
 }

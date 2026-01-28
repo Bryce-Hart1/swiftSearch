@@ -13,25 +13,6 @@
 
 
 
-
-void info(file x){
-    std::println(std::cout,"File name: {} | File size: {}", x.getFileName(), x.returnReadableSize());
-}
-
-
-/**
- * @brief collects numbers in file and sends them to merge with the other threads
- * 
- * 
- * 
- */
-
-
-
-
-
-
-
 /**
  * @details 
  * @param filename name of the file the thread will work on
@@ -126,20 +107,19 @@ void wordFreq(std::string fileName, atomicNode root){
  * 
  */
 void charFreq(std::string fileName, characterBucket &cBucket){
-//print::Thread("Thread has entered charFreq", )
+    //print::Thread("Thread has entered charFreq", std::thread::get_id());
 
-try{
-    std::ifstream input(fileName);
-    std::string word;
+    try{
+        std::ifstream input(fileName);
+        std::string word;
 
-    while(input >> word){
-        for(char letter : word){
-            cBucket.addTo(letter);
+        while(input >> word){
+            for(char letter : word){
+                cBucket.addTo(letter);
+            }
         }
-    }
-
-}catch(std::exception e){
-    print::Error(e);
+    }catch(std::exception e){
+        print::Error(e);
     }
 
 }
@@ -157,14 +137,20 @@ try{
  */
 
 
-void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<std::string> fileNames){
+void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<file> filesList){
     print::Debug("assignOperation() entered.");
         switch(opertation){
-            case OP_TYPE::INFO :{
-
-
-
-            break;
+            case OP_TYPE::INFO :{ //making this simple operation run through on a single loop
+                print::Debug("Operation Type: INFO has started");
+                while(!filesList.empty()){
+                    std::println(std::cout, "FileName {} | Size: {} | Path: {}", 
+                        filesList.front().getFileName(), 
+                        filesList.front().returnReadableSize(), 
+                        filesList.front().filePathToStr());
+                    filesList.pop();
+                }
+                print::Debug("INFO has finished.");
+                break;
             }case OP_TYPE::LIST_NUMBERS: {
                 //not let implemented
                 break;
@@ -176,9 +162,9 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
 
             }case OP_TYPE::CHAR_FREQ: {
                 characterBucket bucketArr(NO_CAPITALS_FLAG);
-                while(!fileNames.empty()){
-                    threadVector.emplace_back(charFreq, fileNames.front(), std::ref(bucketArr));
-                    fileNames.pop();
+                while(!filesList.empty()){
+                    threadVector.emplace_back(charFreq, filesList.front().getFileName(), std::ref(bucketArr));
+                    filesList.pop();
 
                 }
                 std::string charMes = ("queue sucessfully finished for charFreq vector size is" + std::to_string(threadVector.size()));

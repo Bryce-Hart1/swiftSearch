@@ -152,7 +152,7 @@ class fileTreeStructure{
     public:
     fileTreeStructure(file root); //putting setup in constructor
 
-    std::queue<std::string> createStringQueue();
+    std::queue<file> createFileQueue();
     std::string getNameAt(int value); //meant to interate over
     std::string fileTypeToString(std::filesystem::file_type type);
     std::filesystem::file_type returnEnumTypeAt(int value);
