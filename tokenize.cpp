@@ -8,27 +8,12 @@
 #include<queue>
 
 
-/**
- * @param str string to convert to lowercase
- */
-std::string toLowerCase(std::string str){
-    std::string returnStr;
-    for(int i = 0; i < str.length(); i++){
-        if(str[i] >= 'A' && str[i] <= 'Z'){
-            returnStr += (str[i] - 32);
-        }else{
-            returnStr += str[i];
-        }
-    }
-    return returnStr;
-}
-
-
 //Will throw true if there is an error assigning token. If this occurs, program will exit.
 bool assignTokenOne(std::string tokenOne){
-    std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
-    "#listnumbers", "#listwords", "#findcharacterfrequency", "findwordfreq"};
+    std::array<std::string, 9> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
+    "#listnumbers", "#listwords", "#findcharacterfrequency", "#findwordfreq", "#findone", "#findall"};
     tokenOne = toLowerCase(tokenOne);
+    std::cout << tokenOne << "\n";
     int goThoughTokens = 0;
     int foundAt = -1;
     for(int i = 0; i < Tokens.size(); i++){
@@ -49,18 +34,19 @@ bool assignTokenOne(std::string tokenOne){
  * -debug sets all debug messages to on
  *  -caps can only be called on char or string 
  *  -threadtime prints time that thread exits, along with file scanned
+ *  -find finds word.
  *  for now implementation returns no signs that a flag failed to set, may change later
  */
 void justifyFlags(std::vector<std::string> flagsDetected){
+
     print::Debug("justifyFlags() entered");
     std::array<std::string, 3> posFlag = {"-debug", "-caps", "-threadtime"}; 
     for(std::string flag : flagsDetected){
-        flag = toLowerCase(flag);
         if(posFlag[0] == flag){ //debug
             DEBUG_ACTIVE_FLAG = true;
             print::Debug("debug flag set.");
         }
-        if(posFlag[1] == flag){
+        if(posFlag[1] == flag){ //capitals
             NO_CAPITALS_FLAG = true;
             print::Debug("capitals flag set");
         }
@@ -69,6 +55,16 @@ void justifyFlags(std::vector<std::string> flagsDetected){
             print::Debug("show threads set");
         }
     }
+    if(operationTypeOfParse == OP_TYPE::FIND_ALL || operationTypeOfParse == OP_TYPE::FIND_ONE){
+        print::Debug("Operation type is: search");
+        std::println(std::cout, "Please enter the word you are looking for");
+        std::cin >> LOOK_FOR_WORD;
+        if(NO_CAPITALS_FLAG){
+            LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
+        }
+        std::println("Will scan for: {}", LOOK_FOR_WORD);
+    }
+    
 }
 
 /**

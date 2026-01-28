@@ -14,6 +14,8 @@ void printInfo(){
     sleep(1);
     println(cout,"possible # operations: ");
     sleep(1);
+    println(cout, "findOne - returns as soon as one instance of the word is found");
+    println(cout, "#findAll - returns all the times the instance is found");
     println(cout," #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
     println(cout," #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
     println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
@@ -21,9 +23,13 @@ void printInfo(){
     println(cout,"#findCharacterFrequency - finds the frequency of all values");
     println(cout,"findWordFreq - finds the frequency of all words in the list");
     sleep(1);
-    println(cout, "possible flags (start with a - ): \n-threadtime (prints when file enter/exits)\n -debug (debug messages)\n -caps (will not save capital letters)");
+    println(cout,"possible flags (start with a - ):");
+    println(cout,"-threadtime (prints when file enter/exits)");
+    println(cout,"-debug prints debug messages for important runtime events");
+    println(cout,"-caps will not save capital letters, and searches will be done on the files converted to lowercase");
     println(cout,"If you would still like to contine, please enter this command now");
 }
+
 
 void checkArgLength(int argc, char *argv[], std::string &argumentArr){
 
@@ -34,7 +40,7 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
         std::println(std::cout,"No command detected.");
         printInfo(); //print list once before entering tries
         std::getline(std::cin, newStr); //if this is still invalid, we can clean it up later so not to have redundant token breakup
-        argumentArr = newStr;
+        argumentArr = newStr; //if they fail again just exit.
     }else{
         for(int i = 1; i < argc; ++i){
             argumentArr += std::string(argv[i]) + " ";
@@ -44,13 +50,6 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
     print::Debug(debug);
 
 }
-
-
-
-
-
-
-
 
 
 int main(int argc, char *argv[]){
