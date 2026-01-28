@@ -10,9 +10,6 @@
 #include<exception>
 #include<thread>
 
-
-
-
 /**
  * @details 
  * @param filename name of the file the thread will work on
@@ -20,6 +17,7 @@
  * 
  */
 void findAll(std::string filename, std::string keyWord){
+    print::Thread("findAll entered", filename);
     using namespace std;
 
     simpleCount counter;
@@ -43,11 +41,8 @@ void findAll(std::string filename, std::string keyWord){
     }
 
 
-
     }catch(std::filesystem::filesystem_error e){
-        std::string error = e.what();
-        print::Debug("Error opening file");
-        print::Debug(error);
+        print::Error(e);
     }
 }
     
@@ -58,11 +53,10 @@ void findAll(std::string filename, std::string keyWord){
 /**
  * @brief finds and returns as soon as keyword is found, even if keyword is inside of another word
  * 
- * 
  */
 bool findOne(std::string fileName, std::string keyWord){
-    try
-    {
+    print::Thread("Entering findOne", fileName);
+    try{
         std::ifstream input(fileName);
         std::string word;
         while(input >> word){
@@ -71,12 +65,12 @@ bool findOne(std::string fileName, std::string keyWord){
             }
         }
     }
-    catch(const std::exception& e)
-    {
-        //will not be using cerr. find a threadsafe, wrappable workaround
+    catch(std::exception& e){
+        print::Error(e);
     }
 
     return false; 
+    print::Thread("Exiting findOne", fileName);
 }
 
 
@@ -84,14 +78,15 @@ bool findOne(std::string fileName, std::string keyWord){
 
 
 //should make a file since the amount of words could be very large
-void wordFreq(std::string fileName, atomicNode root){
+void wordFreq(std::string fileName, atomicNode &wordTree){
+    print::Thread("Entering wordFreq", fileName);
     using namespace std;
     try{
         ifstream input(fileName);
         string word;
 
         while(input >> word){
-            root.add(word);
+            wordTree.add(word);
         }
     }catch(exception e){
         string error = e.what();
@@ -107,8 +102,7 @@ void wordFreq(std::string fileName, atomicNode root){
  * 
  */
 void charFreq(std::string fileName, characterBucket &cBucket){
-    //print::Thread("Thread has entered charFreq", std::thread::get_id());
-
+    print::Thread("charFreq entered", fileName);
     try{
         std::ifstream input(fileName);
         std::string word;
@@ -121,7 +115,7 @@ void charFreq(std::string fileName, characterBucket &cBucket){
     }catch(std::exception e){
         print::Error(e);
     }
-
+    print::Thread("charFreq exiting", fileName);
 }
 
 
@@ -174,9 +168,11 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
 
             }case OP_TYPE::WORD_FREQ: {
                 atomicNode wordTree('*'); //root
-
-
-
+                while(!filesList.empty()){
+                    threadVector.emplace_back(wordFreq, filesList.front().getFileName(), std::ref(wordTree));
+                    filesList.pop();
+                }
+                print::Debug("Queue sucessfully created with size" + std::to_string(threadVector.size()));
 
             //not yet implemented
             break;

@@ -49,10 +49,9 @@ inline void Error(const std::exception& e){
     std::cerr << "EXCEPTION :: " <<  e.what() << std::endl;
 }
 
-inline void Thread(std::string message, int threadNumber){
+inline void Thread(std::string message, std::string threadsFile){
     std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
-    std::string threadStatement = ("THREAD [" + std::to_string(threadNumber)) + "]~~ ";
+    std::string threadStatement = ("THREAD [" + threadsFile + "]~~ ");
     std::println(std::cout, "{} {} ", threadStatement, message);
 }
-
 }
