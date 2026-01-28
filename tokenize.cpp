@@ -53,8 +53,9 @@ bool assignTokenOne(std::string tokenOne){
  */
 void justifyFlags(std::vector<std::string> flagsDetected){
     print::Debug("justifyFlags() entered");
-    std::array<std::string, 3> posFlag = {"-debug", "-caps", "-threadTime"}; 
+    std::array<std::string, 3> posFlag = {"-debug", "-caps", "-threadtime"}; 
     for(std::string flag : flagsDetected){
+        flag = toLowerCase(flag);
         if(posFlag[0] == flag){ //debug
             DEBUG_ACTIVE_FLAG = true;
             print::Debug("debug flag set.");
@@ -115,12 +116,13 @@ fileTreeStructure* tokenize(std::string input){
     
     try{
        fileTreeStructure* structure = new fileTreeStructure(root);
+       print::Debug("Object fileTreeStructure has been created");
         return structure;
 
     }catch(std::exception e){
-        std::cerr << e.what() << std::endl;
+        print::Error(e);
+        print::Debug("Object fileTreeStructure failed to create.");
     }
-    print::Debug("Object fileTreeStructure failed to create.");
     return nullptr;
 
 }

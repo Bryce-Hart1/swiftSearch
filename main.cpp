@@ -21,6 +21,7 @@ void printInfo(){
     println(cout,"#findCharacterFrequency - finds the frequency of all values");
     println(cout,"findWordFreq - finds the frequency of all words in the list");
     sleep(1);
+    println(cout, "possible flags (start with a - ): \n-threadtime (prints when file enter/exits)\n -debug (debug messages)\n -caps (will not save capital letters)");
     println(cout,"If you would still like to contine, please enter this command now");
 }
 
@@ -53,9 +54,6 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
 
 
 int main(int argc, char *argv[]){
-    DEBUG_ACTIVE_FLAG = true; //hard set for now
-
-
 
     std::string argumentArr;
     checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
