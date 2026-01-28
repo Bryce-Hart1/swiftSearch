@@ -230,6 +230,22 @@ std::vector<long double> numberList::sendDoubleVector(){
     return this->dList;
 }
 
+void numberList::printList(){
+    if(isIntTypeList()){ //these prints are temp, will move to printing to file format
+        for(auto& i : iList){
+            std::cout << i;
+        }
+    }else{
+        for(auto& d : dList){
+            std::cout << d;
+        }
+    }
+}
+
+numberList numberListHelper::combinedList(){
+
+}
+
 /**
  * @class timer - this class keeps up with the clock to document how long an opertation takes
  */

@@ -86,11 +86,17 @@ class numberList{
     void add(auto data);
     void setType(LIST_TYPE);
     bool isIntTypeList();
+    void printList();
     private:
     LIST_TYPE type;
     std::vector<long double> dList;
     std::vector<long long int> iList;
 };
+
+
+namespace numberListHelper{
+    numberList combinedList();
+}
 
 class simpleCount{
     public:

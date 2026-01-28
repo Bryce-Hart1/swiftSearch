@@ -61,8 +61,9 @@ int main(int argc, char *argv[]){
     mainWatch.start(); //start timer
     fileTreeStructure fileStruct = *tokenize(argumentArr);
     print::Debug("Debug mode is on");
-    std::vector<std::thread> threadContainer;
-    assignOperation(threadContainer, operationTypeOfParse, fileStruct.createFileQueue());
+
+    assignOperation(operationTypeOfParse, fileStruct.createFileQueue());
+    
     mainWatch.stop();
     std::println(std::cout, "Opertation has finished in {}", mainWatch.readableTime());
 

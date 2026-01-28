@@ -13,6 +13,6 @@ void wordFreq(std::string fileName, atomicNode &wordTree);
 
 void charFreq(std::string fileName, characterBucket &cBucket);
 
-void assignOperation(std::vector<std::thread> &threadVec, OP_TYPE opertation, std::queue<file> fileNames);
+void assignOperation(OP_TYPE opertation, std::queue<file> fileNames);
 
 void joinThreads(std::vector<std::thread> &threadVec);

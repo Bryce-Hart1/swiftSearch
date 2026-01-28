@@ -40,7 +40,7 @@ bool assignTokenOne(std::string tokenOne){
 void justifyFlags(std::vector<std::string> flagsDetected){
 
     print::Debug("justifyFlags() entered");
-    std::array<std::string, 3> posFlag = {"-debug", "-caps", "-threadtime"}; 
+    std::array<std::string, 4> posFlag = {"-debug", "-caps", "-threadtime", "floatlist"}; 
     for(std::string flag : flagsDetected){
         if(posFlag[0] == flag){ //debug
             DEBUG_ACTIVE_FLAG = true;
@@ -52,7 +52,11 @@ void justifyFlags(std::vector<std::string> flagsDetected){
         }
         if(posFlag[2] == flag){
             SHOW_THREADTIME_FLAG = true;
-            print::Debug("show threads set");
+            print::Debug("show threads flag set");
+        }
+        if(posFlag[3]== flag){
+            FLOAT_NUMBER_LIST_FLAG = true;
+            print::Debug("Float numbers flag set");
         }
     }
     if(operationTypeOfParse == OP_TYPE::FIND_ALL || operationTypeOfParse == OP_TYPE::FIND_ONE){

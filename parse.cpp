@@ -19,7 +19,7 @@
 void findAll(std::string filename, std::string keyWord){
     print::Thread("findAll entered", filename);
     using namespace std;
-
+    int rowOffile = 0;
     simpleCount counter;
 
     string line;
@@ -30,10 +30,11 @@ void findAll(std::string filename, std::string keyWord){
         while(getline(inputFile, line)){
             istringstream strstream(line);
             string word;
-
+            rowOffile++;
             while(strstream >> word){
                 if(keyWord == word){
                     counter.incrementBy(1);
+                    print::Found(keyWord, filename, counter.getCount(), rowOffile);
                 }
 
             }
@@ -124,16 +125,17 @@ void charFreq(std::string fileName, characterBucket &cBucket){
 
 
 /**
- * @brief creates new vector of threads depending on what is needed
- * @param threadNumber the number in the threadArray
- * @param operation the opertation that is done by the thread, matches all other threads
- * @param fileName name of the file that the opertation will be done on, different for every thread
+ * @fn assignOpertation 
+ * @brief does most of the main operation work at runtime, including assigning opertations through the switch,
+ * doing the related work with that operation, and eventually returning after using @fn joinThreads if needed
+ * @param operation previously set operation type 
+ * @param filesList queue of files to run through
  */
 
-
-void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation, std::queue<file> filesList){
+void assignOperation(OP_TYPE operation, std::queue<file> filesList){
+    std::vector<std::thread> threadVector;
     print::Debug("assignOperation() entered.");
-        switch(opertation){
+        switch(operation){
             case OP_TYPE::INFO :{ //making this simple operation run through on a single loop
                 print::Debug("Operation Type: INFO has started");
                 while(!filesList.empty()){
@@ -146,8 +148,8 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
                 print::Debug("INFO has finished.");
                 break;
             }case OP_TYPE::LIST_NUMBERS: {
-                //not let implemented
-                break;
+                numberList main() = numberListHelper::combinedList();
+                main.printList();
             }
             case OP_TYPE::R_SORTED_LIST: {
 
@@ -174,13 +176,19 @@ void assignOperation(std::vector<std::thread> &threadVector, OP_TYPE opertation,
                 }
                 print::Debug("Queue sucessfully created with size" + std::to_string(threadVector.size()));
 
-            //not yet implemented
+                
             break;
             }case OP_TYPE::FIND_ALL: {
-                //std::thread temp(findAll); copy for what we have above, ref class by ref and emplace back
+                while(!filesList.empty()){
+                    threadVector.emplace_back(findAll, filesList.front().getFileName(), operationTypeOfParse);
+                    filesList.pop();
+                }
             break;
             }case OP_TYPE::FIND_ONE: {
-            //find one instance of string and return
+                    while(!filesList.empty()){
+                        threadVector.emplace_back(findAll, filesList.front().getFileName(), operationTypeOfParse);
+                        filesList.pop();
+                }
             break;
             }default:
             break;

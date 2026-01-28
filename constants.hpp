@@ -14,6 +14,7 @@
 inline bool DEBUG_ACTIVE_FLAG;
 inline bool NO_CAPITALS_FLAG;
 inline bool SHOW_THREADTIME_FLAG;
+inline bool FLOAT_NUMBER_LIST_FLAG;
 
 
 enum class OP_TYPE{
@@ -72,5 +73,10 @@ inline void Thread(std::string message, std::string threadsFile){
     std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
     std::string threadStatement = ("THREAD [" + threadsFile + "]~~ ");
     std::println(std::cout, "{} {} ", threadStatement, message);
+}
+
+inline void Found(std::string keyWord, std::string fileName,int instance, int line){
+    std::string foundMsg = "! -> ";
+    std::println(std::cout, foundMsg + "instance |{}| of |keyWord| found at line |{}| : |{}|", instance, keyWord, line, fileName);
 }
 }
