@@ -24,13 +24,13 @@ findCharacterFrequency - finds the frequency of all values
 findWordFreq - finds the frequency of all words in the list
 
 
-
+# Usage
 for clang: compile with: 
 clang++ -std=c++26 main.cpp tokenize.cpp parse.cpp classes.cpp -o main 
 
 
 
 
-#Design 
+# Design 
 
 std::print was used to keep printing atomic, and was used in main to keep conformity throughout.
