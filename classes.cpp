@@ -194,8 +194,8 @@ void simpleCount::incrementBy(int amount){
  * @class numberList
  * wraps over std::vector and just picks between a long long int or a long double
  */
-numberList::numberList(bool isIntList){
-    if(isIntList){
+numberList::numberList(){
+    if(!FLOAT_NUMBER_LIST_FLAG){
         this->setType(LIST_TYPE::INT);
     }else{
         this->setType(LIST_TYPE::DOUBLE);
@@ -242,8 +242,15 @@ void numberList::printList(){
     }
 }
 
-numberList numberListHelper::combinedList(){
+numberList numberListHelper::combinedList(std::queue<file> files){
+    auto temp = std::make_unique<numberList>();
 
+    while(!files.empty()){
+        
+    }
+
+    std::unique_lock<std::mutex> lock(numberListHelper::combinedListLock);
+    return *temp; //lock before returning to insure all over threads stop before sending
 }
 
 /**

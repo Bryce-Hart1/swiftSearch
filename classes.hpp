@@ -74,29 +74,6 @@ private:
     bool ignoreCaps;
 };
 
-class numberList{
-    enum class LIST_TYPE{
-        UNSET,
-        DOUBLE,
-        INT
-    };
-    numberList(bool isIntList);
-    std::vector<long double> sendDoubleVector();
-    std::vector<long long int> sendIntVector();
-    void add(auto data);
-    void setType(LIST_TYPE);
-    bool isIntTypeList();
-    void printList();
-    private:
-    LIST_TYPE type;
-    std::vector<long double> dList;
-    std::vector<long long int> iList;
-};
-
-
-namespace numberListHelper{
-    numberList combinedList();
-}
 
 class simpleCount{
     public:
@@ -170,3 +147,27 @@ class fileTreeStructure{
     
 };
 
+class numberList{
+    enum class LIST_TYPE{
+        UNSET,
+        DOUBLE,
+        INT
+    };
+    numberList();
+    std::vector<long double> sendDoubleVector();
+    std::vector<long long int> sendIntVector();
+    void add(auto data);
+    void setType(LIST_TYPE);
+    bool isIntTypeList();
+    void printList();
+    private:
+    LIST_TYPE type;
+    std::vector<long double> dList;
+    std::vector<long long int> iList;
+};
+
+
+namespace numberListHelper{
+    numberList combinedList(std::queue<file> files);
+    inline std::mutex combinedListLock;
+}
