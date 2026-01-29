@@ -148,8 +148,8 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 print::Debug("INFO has finished.");
                 break;
             }case OP_TYPE::LIST_NUMBERS: {
-                numberList main() = numberListHelper::combinedList();
-                main.printList();
+                numberList main();
+                numberListHelper::combinedList(filesList);
             }
             case OP_TYPE::R_SORTED_LIST: {
 

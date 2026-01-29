@@ -170,4 +170,5 @@ class numberList{
 namespace numberListHelper{
     numberList combinedList(std::queue<file> files);
     inline std::mutex combinedListLock;
+    numberList singleList(std::string file);
 }

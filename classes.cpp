@@ -242,6 +242,7 @@ void numberList::printList(){
     }
 }
 
+//combines all vectors from singleLists() and waits for all threads to finish, and combines them
 numberList numberListHelper::combinedList(std::queue<file> files){
     auto temp = std::make_unique<numberList>();
 
@@ -251,6 +252,12 @@ numberList numberListHelper::combinedList(std::queue<file> files){
 
     std::unique_lock<std::mutex> lock(numberListHelper::combinedListLock);
     return *temp; //lock before returning to insure all over threads stop before sending
+}
+
+
+numberList numberListHelper::singleList(std::string file){
+
+
 }
 
 /**
