@@ -153,6 +153,7 @@ class numberList{
         DOUBLE,
         INT
     };
+public:
     numberList();
     std::vector<long double> sendDoubleVector();
     std::vector<long long int> sendIntVector();
@@ -170,5 +171,4 @@ class numberList{
 namespace numberListHelper{
     numberList combinedList(std::queue<file> files);
     inline std::mutex combinedListLock;
-    numberList singleList(std::string file);
 }

@@ -120,6 +120,30 @@ void charFreq(std::string fileName, characterBucket &cBucket){
 }
 
 
+numberList singleList(std::string file){
+    print::Thread("singleListEntered", file);
+    numberList list{};
+    try{
+        std::ifstream input(file);
+        if(FLOAT_NUMBER_LIST_FLAG){
+            long double number;
+            while(input >> number){
+                list.add(number);
+            }
+        }else{
+            long long int number;
+            while(input >> number){
+                list.add(number);
+            }
+        }
+
+    }catch(std::exception e){
+        print::Error(e);
+    }
+    return list;
+}
+
+
 
 
 

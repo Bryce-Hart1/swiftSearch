@@ -14,6 +14,7 @@
 #include <functional>
 #include <fstream>
 #include <cmath>
+#include <future>
 
 
 //fast toLower function. may need it later
@@ -201,6 +202,7 @@ numberList::numberList(){
         this->setType(LIST_TYPE::DOUBLE);
     }
 }
+
 void numberList::add(auto data){
     if(this->isIntTypeList()){
         data = static_cast<long long int>(data); //just to be safe
@@ -254,11 +256,6 @@ numberList numberListHelper::combinedList(std::queue<file> files){
     return *temp; //lock before returning to insure all over threads stop before sending
 }
 
-
-numberList numberListHelper::singleList(std::string file){
-
-
-}
 
 /**
  * @class timer - this class keeps up with the clock to document how long an opertation takes
