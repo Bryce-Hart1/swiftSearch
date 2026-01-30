@@ -45,6 +45,7 @@ void findAll(std::string filename, std::string keyWord){
     }catch(std::filesystem::filesystem_error e){
         print::Error(e);
     }
+    print::Thread("Exiting findAll", filename);
 }
     
 
@@ -93,6 +94,7 @@ void wordFreq(std::string fileName, atomicNode &wordTree){
         string error = e.what();
         print::Debug(error);
     }
+    print::Thread("Exiting wordFeq", fileName);
 }
 
 
@@ -160,6 +162,7 @@ numberList singleList(std::string file){
 
 void assignOperation(OP_TYPE operation, std::queue<file> filesList){
     std::vector<std::thread> threadVector;
+
     print::Debug("assignOperation() entered.");
         switch(operation){
             case OP_TYPE::INFO :{ //making this simple operation run through on a single loop
@@ -224,7 +227,7 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
             }default:
                     break;
         }
-
+        print::Debug("Exiting assignOperation");
     }
     
 
