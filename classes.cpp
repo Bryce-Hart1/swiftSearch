@@ -244,14 +244,37 @@ std::vector<long double> numberList::sendDoubleVector(){
     return this->dList;
 }
 
+void numberList::sort(){
+    //temp for now
+    return;
+}
+
+
+void numberList::reverse(){
+    if(isIntTypeList()){
+        for(int i = 0; i < iList.size()/2; i++){
+            long long int toFront = iList[iList.size() - i];
+            iList[iList.size() - i] = iList[i];
+            iList[i] = toFront;
+        }
+    }else{
+        for(int i = 0; i < dList.size(); i++){
+            long double toFront = dList[dList.size() - i];
+            dList[dList.size() - 1] = dList[i];
+            dList[i] = toFront;
+        }
+    }
+
+}
+
 void numberList::printList(){
     if(isIntTypeList()){ //these prints are temp, will move to printing to file format
         for(auto& i : iList){
-            std::cout << i;
+            std::cout << i <<std::endl;
         }
     }else{
         for(auto& d : dList){
-            std::cout << d;
+            std::cout << d << std::endl;
         }
     }
 }
