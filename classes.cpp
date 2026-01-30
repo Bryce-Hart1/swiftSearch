@@ -15,6 +15,7 @@
 #include <fstream>
 #include <cmath>
 #include <future>
+#include <algorithm>
 
 
 //fast toLower function. may need it later
@@ -245,8 +246,11 @@ std::vector<long double> numberList::sendDoubleVector(){
 }
 
 void numberList::sort(){
-    //temp for now
-    return;
+    if(isIntTypeList()){
+        std::sort(iList.begin(), iList.end());
+    }else{
+        std::sort(dList.begin(), dList.end());
+    }
 }
 
 
@@ -278,6 +282,11 @@ void numberList::printList(){
         }
     }
 }
+
+void numberList::printToFile(std::string preDefFileName){
+    
+}
+
 
 //combines all vectors from singleLists() and waits for all threads to finish, and combines them
 numberList numberListHelper::combinedList(std::queue<file> files){

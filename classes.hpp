@@ -162,6 +162,7 @@ public:
     void setType(LIST_TYPE);
     bool isIntTypeList();
     void printList();
+    void printToFile(std::string preDefName);
     void sort();
     void reverse();
     private:
