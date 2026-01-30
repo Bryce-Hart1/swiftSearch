@@ -97,10 +97,10 @@ void wordFreq(std::string fileName, atomicNode &wordTree){
 
 
 /**
+ * @fn charFreq 
  * @brief using charbucket to find character frequency.
+ * puts all characters found in the file into a combined charbucket
  * As of right now, it does not track spaces but this is by design.
- * 
- * 
  */
 void charFreq(std::string fileName, characterBucket &cBucket){
     print::Thread("charFreq entered", fileName);
@@ -119,10 +119,14 @@ void charFreq(std::string fileName, characterBucket &cBucket){
     print::Thread("charFreq exiting", fileName);
 }
 
+/**
+ * @fn makes input from a single thread and gives it to the main numberList
+ * works with both vectors in numberList
+ */
 
 numberList singleList(std::string file){
-    print::Thread("singleListEntered", file);
-    numberList list{};
+    print::Thread("singleList entered", file);
+    numberList list{}; //returned list
     try{
         std::ifstream input(file);
         if(FLOAT_NUMBER_LIST_FLAG){
@@ -140,11 +144,9 @@ numberList singleList(std::string file){
     }catch(std::exception e){
         print::Error(e);
     }
+    print::Thread("singleList exiting", file);
     return list;
 }
-
-
-
 
 
 
@@ -172,14 +174,20 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 print::Debug("INFO has finished.");
                 break;
             }case OP_TYPE::LIST_NUMBERS: {
-                numberList main();
-                numberListHelper::combinedList(filesList);
+                numberList mainList = numberListHelper::combinedList(filesList);
+                mainList.printList(); //eventually will have printable file format
+                break;
             }
             case OP_TYPE::R_SORTED_LIST: {
-
+                numberList mainList = numberListHelper::combinedList(filesList);
+                mainList.sort();
+                mainList.reverse();
+                break;
             }case OP_TYPE::SORTED_LIST: {
-            break;
-
+                numberList mainList = numberListHelper::combinedList(filesList);
+                mainList.sort();
+                mainList.printList();
+                break;
             }case OP_TYPE::CHAR_FREQ: {
                 characterBucket bucketArr(NO_CAPITALS_FLAG);
                 while(!filesList.empty()){
@@ -200,22 +208,21 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 }
                 print::Debug("Queue sucessfully created with size" + std::to_string(threadVector.size()));
 
-                
-            break;
+                break;
             }case OP_TYPE::FIND_ALL: {
                 while(!filesList.empty()){
                     threadVector.emplace_back(findAll, filesList.front().getFileName(), operationTypeOfParse);
                     filesList.pop();
                 }
-            break;
+                    break;
             }case OP_TYPE::FIND_ONE: {
                     while(!filesList.empty()){
                         threadVector.emplace_back(findAll, filesList.front().getFileName(), operationTypeOfParse);
                         filesList.pop();
-                }
-            break;
+                    }
+                    break;
             }default:
-            break;
+                    break;
         }
 
     }

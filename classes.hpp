@@ -162,6 +162,8 @@ public:
     void setType(LIST_TYPE);
     bool isIntTypeList();
     void printList();
+    void sort();
+    void reverse();
     private:
     LIST_TYPE type;
     std::vector<long double> dList;
