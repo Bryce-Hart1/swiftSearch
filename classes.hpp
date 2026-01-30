@@ -158,6 +158,7 @@ public:
     std::vector<long double> sendDoubleVector();
     std::vector<long long int> sendIntVector();
     void add(auto data);
+    void addVec(numberList data);
     void setType(LIST_TYPE);
     bool isIntTypeList();
     void printList();

@@ -1,6 +1,6 @@
 #include "classes.hpp"
 #include "constants.hpp"
-
+#include "parse.hpp"
 
 #include <vector>
 #include <array>
@@ -213,6 +213,18 @@ void numberList::add(auto data){
     }
 }
 
+void numberList::addVec(numberList vector){
+    if(this->isIntTypeList()){
+        for(auto& a : vector.iList){ //pull from that vectors int list
+            this->iList.push_back(a);
+        }
+    }else{
+        for(auto& a : vector.dList){
+            this->dList.push_back(a);
+        }
+    }
+}
+
 void numberList::setType(LIST_TYPE x){
     this->type = x;
 }
@@ -246,14 +258,17 @@ void numberList::printList(){
 
 //combines all vectors from singleLists() and waits for all threads to finish, and combines them
 numberList numberListHelper::combinedList(std::queue<file> files){
-    auto temp = std::make_unique<numberList>();
+    numberList mainList{};
+    std::vector<std::future<numberList>> futureList;
 
     while(!files.empty()){
-        
+        futureList.push_back(std::async(singleList, files.front().getFileName())); //create a task for each vector position
+        files.pop();
     }
-
-    std::unique_lock<std::mutex> lock(numberListHelper::combinedListLock);
-    return *temp; //lock before returning to insure all over threads stop before sending
+    for(int i = 0; i < futureList.size(); i++){
+        mainList.addVec(futureList[i].get()); //get vector at that vector position, and add to the main vector
+    }
+    return mainList; //return the full list 
 }
 
 

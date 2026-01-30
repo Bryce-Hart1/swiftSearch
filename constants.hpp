@@ -76,7 +76,6 @@ inline void Thread(std::string message, std::string threadsFile){
 }
 
 inline void Found(std::string keyWord, std::string fileName,int instance, int line){
-    std::string foundMsg = "! -> ";
-    std::println(std::cout, foundMsg + "instance |{}| of |keyWord| found at line |{}| : |{}|", instance, keyWord, line, fileName);
+    std::println(std::cout, "! -> instance |{}| of |keyWord| found at line |{}| : |{}|", instance, keyWord, line, fileName);
 }
 }
