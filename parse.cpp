@@ -26,11 +26,11 @@ void findAll(std::string filename, std::string keyWord){
 
     try{
     ifstream inputFile(filename);
-    if(inputFile.is_open()){
-        while(getline(inputFile, line)){
-            istringstream strstream(line);
-            string word;
-            rowOffile++;
+        if(inputFile.is_open()){
+            while(getline(inputFile, line)){
+                istringstream strstream(line);
+                string word;
+                rowOffile++;
             while(strstream >> word){
                 if(keyWord == word){
                     counter.incrementBy(1);
@@ -74,8 +74,6 @@ bool findOne(std::string fileName, std::string keyWord){
     return false; 
     print::Thread("Exiting findOne", fileName);
 }
-
-
 
 
 
@@ -125,12 +123,12 @@ void charFreq(std::string fileName, characterBucket &cBucket){
  * @fn makes input from a single thread and gives it to the main numberList
  * works with both vectors in numberList
  */
+numberList singleList(std::string fileName){
 
-numberList singleList(std::string file){
-    print::Thread("singleList entered", file);
+    print::Thread("singleList entered", fileName);
     numberList list{}; //returned list
     try{
-        std::ifstream input(file);
+        std::ifstream input(fileName);
         if(FLOAT_NUMBER_LIST_FLAG){
             long double number;
             while(input >> number){
@@ -142,11 +140,11 @@ numberList singleList(std::string file){
                 list.add(number);
             }
         }
-
+        
     }catch(std::exception e){
         print::Error(e);
     }
-    print::Thread("singleList exiting", file);
+    print::Thread("singleList exiting", fileName);
     return list;
 }
 
@@ -214,23 +212,23 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 break;
             }case OP_TYPE::FIND_ALL: {
                 while(!filesList.empty()){
-                    threadVector.emplace_back(findAll, filesList.front().getFileName(), operationTypeOfParse);
-                    filesList.pop();
-                }
-                    break;
+                threadVector.emplace_back(findAll, filesList.front().getFileName(), LOOK_FOR_WORD);
+                filesList.pop();
+            }
+            joinThreads(threadVector);
+            break;
             }case OP_TYPE::FIND_ONE: {
-                    while(!filesList.empty()){
-                        threadVector.emplace_back(findAll, filesList.front().getFileName(), operationTypeOfParse);
-                        filesList.pop();
-                    }
-                    break;
-            }default:
-                    break;
-        }
+
+            while(!filesList.empty()){
+            threadVector.emplace_back(findOne, filesList.front().getFileName(), LOOK_FOR_WORD);
+            filesList.pop();}
+            joinThreads(threadVector);
+            break;
+            }
         print::Debug("Exiting assignOperation");
     }
     
-
+}
 
 
 

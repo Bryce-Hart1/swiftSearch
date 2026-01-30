@@ -22,7 +22,6 @@ enum class OP_TYPE{
     SORTED_LIST,
     R_SORTED_LIST,
     LIST_NUMBERS,
-    LIST_WORDS,
     CHAR_FREQ,
     WORD_FREQ,
     FIND_ALL,
