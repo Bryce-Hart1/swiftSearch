@@ -16,9 +16,8 @@
 #include <cmath>
 #include <future>
 #include <algorithm>
+#include <fstream>
 
-
-//fast toLower function. may need it later
 char toLower(unsigned char value) {
     if(value >= 'A' && value <= 'Z') {
         return value + 32;
@@ -204,6 +203,14 @@ numberList::numberList(){
     }
 }
 
+void numberList::add(long long int data){
+    iList.push_back(data);
+}
+void numberList::add(long double data){
+    dList.push_back(data);
+}
+
+
 
 void numberList::addVec(numberList vector){
     if(this->isIntTypeList()){
@@ -274,18 +281,37 @@ void numberList::printList(){
     }
 }
 
+//call this method last. Takes a suggested file name
 void numberList::printToFile(std::string preDefFileName){
-    return; //adding later
+    std::ofstream output(preDefFileName);
+    if(!output.is_open()){
+        print::Debug("Error in numberList::printToFile: could not open file.");
+        return;
+    }
+    if(isIntTypeList()){
+        for(auto& a : iList){
+            output << std::to_string(a) << std::endl;
+        }
+    }else{
+        for(auto& a : dList){
+            output << std::to_string(a) << std::endl;
+        }
+    }
+    output.close();
+    print::Debug("Data has been written to " + preDefFileName);
 }
 
 
-//combines all vectors from singleLists() and waits for all threads to finish, and combines them
+/**
+ * combines all vectors from singleLists() and waits for all threads to finish, and combines them
+ * @details passes in file class, not string
+ */
 numberList numberListHelper::combinedList(std::queue<file> files){
     numberList mainList{};
     std::vector<std::future<numberList>> futureList;
 
     while(!files.empty()){
-        futureList.push_back(std::async(singleList, files.front().getFileName())); //create a task for each vector position
+        futureList.push_back(std::async(singleList, files.front())); //create a task for each vector position
         files.pop();
     }
     for(size_t i = 0; i < futureList.size(); i++){

@@ -157,14 +157,8 @@ public:
     numberList();
     std::vector<long double> sendDoubleVector();
     std::vector<long long int> sendIntVector();
-    void add(auto data){ //fixing linker template error
-        if(this->isIntTypeList()){
-            data = static_cast<long long int>(data); //just to be safe
-            this->iList.push_back(data);
-        }else{
-            data = static_cast<long double>(data);
-            this->dList.push_back(data);
-            }}
+    void add(long long int data);
+    void add(long double data);
     void addVec(numberList data);
     void setType(LIST_TYPE);
     bool isIntTypeList();

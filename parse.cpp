@@ -60,6 +60,7 @@ bool findOne(std::string fileName, std::string keyWord){
     print::Thread(str::enter, fileName);
     try{
         std::ifstream input(fileName);
+
         std::string word;
         while(input >> word){
             if(word == keyWord){
@@ -67,7 +68,7 @@ bool findOne(std::string fileName, std::string keyWord){
             }
         }
     }
-    catch(std::exception& e){
+    catch(const std::exception& e){
         print::Error(e);
     }
 
@@ -123,28 +124,49 @@ void charFreq(std::string fileName, characterBucket &cBucket){
  * @fn makes input from a single thread and gives it to the main numberList
  * works with both vectors in numberList
  */
-numberList singleList(std::string fileName){
-
-    print::Thread(str::enter, fileName);
+numberList singleList(file f){
+    long long debugCount = 0;
+    print::Thread(str::enter, f.getFileName());
     numberList list{}; //returned list
     try{
-        std::ifstream input(fileName);
-        if(FLOAT_NUMBER_LIST_FLAG){
-            long double number;
-            while(input >> number){
-                list.add(number);
-            }
-        }else{
-            long long int number;
-            while(input >> number){
-                list.add(number);
-            }
+        std::ifstream input(f.filePathToStr());
+        if(!input.is_open()){
+            print::Debug("File " + f.getFileName() + "Failed to open.");
         }
+            std::string word;
+        while(input >> word){
+        if(FLOAT_NUMBER_LIST_FLAG){
+            try{
+                size_t pos;
+                long double num = std::stold(word, &pos);
+                if(pos == word.length()){
+                    list.add(num); //only adds if there is no trailing characters
+                    debugCount++;
+            }
+        }catch(const std::invalid_argument&){
+        }catch(const std::out_of_range&){
+            print::Debug("The number found was out of range. ");
+        }
+    }else{
+        try{
+            size_t pos;
+            long long int num = std::stoll(word, &pos);
+            if(pos == word.length()){
+                list.add(num);
+                debugCount++;
+            }
+        }catch(const std::invalid_argument&){
+        }catch(const std::out_of_range&){
+            print::Debug("The number found was out of range.");
+        }
+    }
+}
         
     }catch(const std::exception& e){
         print::Error(e);
     }
-    print::Thread(str::exit, fileName);
+    print::Debug(std::to_string(debugCount) + " numbers found in " + f.getFileName());
+    print::Thread(str::exit, f.getFileName());
     return list;
 }
 
@@ -177,17 +199,20 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
             }case OP_TYPE::LIST_NUMBERS: {
                 numberList mainList = numberListHelper::combinedList(filesList);
                 mainList.printList(); //eventually will have printable file format
+                mainList.printToFile("ListedNumbers.txt");
                 break;
             }
             case OP_TYPE::R_SORTED_LIST: {
                 numberList mainList = numberListHelper::combinedList(filesList);
                 mainList.sort();
                 mainList.reverse();
+                mainList.printToFile("ReverseSortedList.txt");
                 break;
             }case OP_TYPE::SORTED_LIST: {
                 numberList mainList = numberListHelper::combinedList(filesList);
                 mainList.sort();
-                mainList.printList();
+                mainList.printToFile("SortedList.txt");
+                std::cout << "Size is " << mainList.sendIntVector().size() << " " << mainList.sendDoubleVector().size() << std::endl;
                 break;
             }case OP_TYPE::CHAR_FREQ: {
                 characterBucket bucketArr(NO_CAPITALS_FLAG);

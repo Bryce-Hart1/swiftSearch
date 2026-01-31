@@ -11,7 +11,7 @@
 //Will throw true if there is an error assigning token. If this occurs, program will exit from tokenize
 bool assignTokenOne(std::string tokenOne){
     std::array<std::string, 8> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
-    "#listnumbers", "#findcharacterfrequency", "#findwordfreq", "#findone", "#findall"};
+    "#listnumbers", "#getcharacters", "#getwords", "#findone", "#findall"};
     tokenOne = toLowerCase(tokenOne);
     std::cout << tokenOne << "\n";
     int foundAt = -1;
@@ -59,7 +59,7 @@ bool assignTokenOne(std::string tokenOne){
 void justifyFlags(std::vector<std::string> flagsDetected){
 
     print::Debug("justifyFlags() entered");
-    std::array<std::string, 4> posFlag = {"-debug", "-caps", "-threadtime", "-floatlist"}; 
+    std::array<std::string, 4> posFlag = {"-debug", "-caps", "-threadinfo", "-floatlist"}; 
     for(std::string flag : flagsDetected){
         if(posFlag[0] == flag){ //debug
             DEBUG_ACTIVE_FLAG = true;
