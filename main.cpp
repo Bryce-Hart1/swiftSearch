@@ -34,8 +34,6 @@ void printInfo(){
 void checkArgLength(int argc, char *argv[], std::string &argumentArr){
 
     if(argc < 3){ //If length is invalid, the user gets a set number of tries before the program exits
-        const int numberOfTries = 5;
-        int currentCount = 0;
         std::string newStr;
         std::println(std::cout,"No command detected.");
         printInfo(); //print list once before entering tries

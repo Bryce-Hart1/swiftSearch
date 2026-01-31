@@ -10,16 +10,35 @@
 
 //Will throw true if there is an error assigning token. If this occurs, program will exit from tokenize
 bool assignTokenOne(std::string tokenOne){
-    std::array<std::string, 9> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
-    "#listnumbers", "#listwords", "#findcharacterfrequency", "#findwordfreq", "#findone", "#findall"};
+    std::array<std::string, 8> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
+    "#listnumbers", "#findcharacterfrequency", "#findwordfreq", "#findone", "#findall"};
     tokenOne = toLowerCase(tokenOne);
     std::cout << tokenOne << "\n";
-    int goThoughTokens = 0;
     int foundAt = -1;
-    for(int i = 0; i < Tokens.size(); i++){
+    for(size_t i = 0; i < Tokens.size(); i++){
         if(Tokens.at(i) == tokenOne){
             foundAt = i;
         }
+    }
+    print::Debug("Entering token one assignment...");
+
+    switch(foundAt){ //set op type
+        case 0: operationTypeOfParse = OP_TYPE::INFO;
+        break;
+        case 1: operationTypeOfParse = OP_TYPE::SORTED_LIST;
+        break;
+        case 2: operationTypeOfParse = OP_TYPE::R_SORTED_LIST;
+        break;
+        case 3: operationTypeOfParse = OP_TYPE::LIST_NUMBERS;
+        break;
+        case 4: operationTypeOfParse = OP_TYPE::CHAR_FREQ;
+        break;
+        case 5: operationTypeOfParse = OP_TYPE::WORD_FREQ;
+        break;
+        case 6: operationTypeOfParse = OP_TYPE::FIND_ONE;
+        break;
+        case 7: operationTypeOfParse = OP_TYPE::FIND_ALL;
+        break;
     }
     if(foundAt == -1){
         print::Debug(("Token One is invalid and value is " + tokenOne));
@@ -66,7 +85,7 @@ void justifyFlags(std::vector<std::string> flagsDetected){
         if(NO_CAPITALS_FLAG){
             LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
         }
-        std::println("Will scan for: {}", LOOK_FOR_WORD);
+        std::println(std::cout, "Will scan for: {}", LOOK_FOR_WORD);
     }
     
 }
@@ -86,7 +105,6 @@ void justifyFlags(std::vector<std::string> flagsDetected){
 fileTreeStructure* tokenize(std::string input){
     print::Debug("tokenize() entered");
     std::vector<std::string> tokens;
-    const int maxTokenLimit = 10;
     std::string fileToLook;
 
 
@@ -107,7 +125,7 @@ fileTreeStructure* tokenize(std::string input){
 
     //sets some global booleans for tokens
     std::vector<std::string> flags;
-    for(int i = 2; i < tokens.size(); i++){
+    for(size_t i = 2; i < tokens.size(); i++){
         flags.push_back(tokens.at(i));
     }
     justifyFlags(flags); //sets global values here
@@ -119,7 +137,7 @@ fileTreeStructure* tokenize(std::string input){
        print::Debug("Object fileTreeStructure has been created");
         return structure;
 
-    }catch(std::exception e){
+    }catch(const std::exception& e){
         print::Error(e);
         print::Debug("Object fileTreeStructure failed to create.");
     }

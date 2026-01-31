@@ -113,11 +113,11 @@ class file{
     public:
     file();
     file(std::string name); //for assigning new files
+    std::filesystem::path getfsPath(); //this should be primary condition of each file
     std::string getFileName();
     unsigned long long int getFileSize();
     std::string returnReadableSize();
     std::filesystem::file_type getEnumType();
-    std::filesystem::path getfsPath();
     std::string filePathToStr();
     void setFileName(std::string name);
     void setFileSize(std::uintmax_t size);
@@ -157,7 +157,14 @@ public:
     numberList();
     std::vector<long double> sendDoubleVector();
     std::vector<long long int> sendIntVector();
-    void add(auto data);
+    void add(auto data){ //fixing linker template error
+        if(this->isIntTypeList()){
+            data = static_cast<long long int>(data); //just to be safe
+            this->iList.push_back(data);
+        }else{
+            data = static_cast<long double>(data);
+            this->dList.push_back(data);
+            }}
     void addVec(numberList data);
     void setType(LIST_TYPE);
     bool isIntTypeList();

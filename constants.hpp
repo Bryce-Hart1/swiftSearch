@@ -39,7 +39,7 @@ inline std::string LOOK_FOR_WORD;
  */
 inline std::string toLowerCase(std::string str){
     std::string returnStr;
-    for(int i = 0; i < str.length(); i++){
+    for(size_t i = 0; i < str.length(); i++){
         if(str[i] >= 'A' && str[i] <= 'Z'){
             returnStr += (str[i] + 32);
         }else{

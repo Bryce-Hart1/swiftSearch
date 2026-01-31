@@ -87,7 +87,7 @@ unsigned int atomicNode::getChildCount() const{
 void atomicNode::add(std::string word){
     atomicNode* current = this;
     
-    for(int i = 0; i < word.length(); i++){
+    for(size_t i = 0; i < word.length(); i++){
         if(NO_CAPITALS_FLAG){ //first check if capitals are allowed. If not, set to lower
             word[i] = toLower(word[i]);
         }
@@ -155,7 +155,7 @@ void characterBucket::addTo(char value){
 }
 
 void characterBucket::printAll(){
-    for(int i = 0; i < this->buckets.size(); i++){
+    for(size_t i = 0; i < this->buckets.size(); i++){
         if(ignoreCaps){
             const int dist = 32; //distance from A to a in ascii
             if(i < 'A' && 'Z' < i){//better A and Z print nothing
@@ -204,15 +204,6 @@ numberList::numberList(){
     }
 }
 
-void numberList::add(auto data){
-    if(this->isIntTypeList()){
-        data = static_cast<long long int>(data); //just to be safe
-        this->iList.push_back(data);
-    }else{
-        data = static_cast<long double>(data);
-        this->dList.push_back(data);
-    }
-}
 
 void numberList::addVec(numberList vector){
     if(this->isIntTypeList()){
@@ -256,13 +247,13 @@ void numberList::sort(){
 
 void numberList::reverse(){
     if(isIntTypeList()){
-        for(int i = 0; i < iList.size()/2; i++){
+        for(size_t i = 0; i < iList.size()/2; i++){
             long long int toFront = iList[iList.size() - i];
             iList[iList.size() - i] = iList[i];
             iList[i] = toFront;
         }
     }else{
-        for(int i = 0; i < dList.size(); i++){
+        for(size_t i = 0; i < dList.size(); i++){
             long double toFront = dList[dList.size() - i];
             dList[dList.size() - 1] = dList[i];
             dList[i] = toFront;
@@ -284,7 +275,7 @@ void numberList::printList(){
 }
 
 void numberList::printToFile(std::string preDefFileName){
-    
+    return; //adding later
 }
 
 
@@ -297,7 +288,7 @@ numberList numberListHelper::combinedList(std::queue<file> files){
         futureList.push_back(std::async(singleList, files.front().getFileName())); //create a task for each vector position
         files.pop();
     }
-    for(int i = 0; i < futureList.size(); i++){
+    for(size_t i = 0; i < futureList.size(); i++){
         mainList.addVec(futureList[i].get()); //get vector at that vector position, and add to the main vector
     }
     return mainList; //return the full list 
@@ -362,7 +353,7 @@ file::file(std::string name){
     try{
         this->fileName = name;
         this->fsPath = std::filesystem::path(name);
-    }catch(std::exception e){
+    }catch(const std::exception& e){
         std::cerr << e.what() << std::endl;
     }
 }
@@ -388,10 +379,8 @@ std::string file::returnReadableSize(){
     if( fileSize < 1000 ){
         return (std::to_string(fileSize) + " bytes"); 
     }else if(fileSize < 1000000){ //up to giga
-        double temp = (fileSize / 1000);
         return (std::to_string(fileSize) + " kilobytes");
     }else{ 
-        double temp = (fileSize / 1000000);
         return (std::to_string(fileSize) + " gigabytes");  
     }
 }
@@ -446,7 +435,7 @@ fileTreeStructure::fileTreeStructure(file root){
             storedFiles.push_back(x);
         }
 
-    }catch(std::exception e){
+    }catch(const std::exception& e){
         std::cerr << e.what() << std::endl;
     }
 }

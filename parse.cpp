@@ -42,7 +42,7 @@ void findAll(std::string filename, std::string keyWord){
     }
 
 
-    }catch(std::filesystem::filesystem_error e){
+    }catch(const std::filesystem::filesystem_error& e){
         print::Error(e);
     }
     print::Thread("Exiting findAll", filename);
@@ -88,7 +88,7 @@ void wordFreq(std::string fileName, atomicNode &wordTree){
         while(input >> word){
             wordTree.add(word);
         }
-    }catch(exception e){
+    }catch(const exception& e){
         string error = e.what();
         print::Debug(error);
     }
@@ -113,7 +113,7 @@ void charFreq(std::string fileName, characterBucket &cBucket){
                 cBucket.addTo(letter);
             }
         }
-    }catch(std::exception e){
+    }catch(const std::exception &e){
         print::Error(e);
     }
     print::Thread("charFreq exiting", fileName);
@@ -141,7 +141,7 @@ numberList singleList(std::string fileName){
             }
         }
         
-    }catch(std::exception e){
+    }catch(const std::exception& e){
         print::Error(e);
     }
     print::Thread("singleList exiting", fileName);
@@ -200,7 +200,7 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 print::Debug(charMes);
                 joinThreads(threadVector); //seperate join function
                 bucketArr.printAll(); //print with method
-
+                break;
             }case OP_TYPE::WORD_FREQ: {
                 atomicNode wordTree('*'); //root
                 while(!filesList.empty()){
@@ -237,7 +237,7 @@ void joinThreads(std::vector<std::thread>& threadVec){
     for(std::thread& thread : threadVec){
         try{
             thread.join();
-        }catch(std::exception e){
+        }catch(const std::exception& e){
             std::string error = e.what();
             print::Debug(error);
         }
