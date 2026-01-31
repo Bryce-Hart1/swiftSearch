@@ -83,6 +83,6 @@ inline void Found(std::string keyWord, std::string fileName,int instance, int li
 }
 
 namespace str{ //simple for now, may include times later
-    std::string enter = "Starting task ... ";
-    std::string exit = "Exiting task ... ";
+    inline std::string enter = "Starting task ... ";
+    inline std::string exit = "Exiting task ... ";
 }
