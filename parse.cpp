@@ -232,8 +232,9 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                     threadVector.emplace_back(wordFreq, filesList.front().getFileName(), std::ref(wordTree));
                     filesList.pop();
                 }
+                joinThreads(threadVector);
                 print::Debug("Queue sucessfully created with size" + std::to_string(threadVector.size()));
-
+                
                 break;
             }case OP_TYPE::FIND_ALL: {
                 while(!filesList.empty()){

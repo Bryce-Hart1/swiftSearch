@@ -32,7 +32,8 @@ class atomicNode {
         atomicNode* findChildNode(char value);
         unsigned int getChildCount() const;
         void add(std::string word);
-        void printSet(std::string prefix);
+        void saveSet(std::string prefix, std::vector<std::string>& allWords);
+        void printTofile(std::string preDefFileName, std::vector<std::string>& wordVec);
     private:
         char value;
         unsigned int count;

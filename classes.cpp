@@ -17,6 +17,7 @@
 #include <future>
 #include <algorithm>
 #include <fstream>
+#include <unordered_map>
 
 char toLower(unsigned char value) {
     if(value >= 'A' && value <= 'Z') {
@@ -111,12 +112,26 @@ void atomicNode::add(std::string word){
 }
 
 //print everything but root, and only if it is an endpoint
-void atomicNode::printSet(std::string prefix){
-    if(!this->isEndPoint && !this->isRoot){
-        std::println(std::cout,"{} : {}", prefix, this->count);
+void atomicNode::saveSet(std::string prefix, std::vector<std::string>& allwords){
+    if(this->isEndPoint && !this->isRoot){
+        allwords.push_back(prefix);
     }
     for(auto& child : children){ //for all children
-        child->printSet(prefix + child->value);
+        child->saveSet(prefix + child->value, allwords);
+    }
+}
+void atomicNode::printTofile(std::string predef, std::vector<std::string>& words){
+    std::ofstream output(predef);
+    if(!output.is_open()){
+        print::Debug("Error in numberList::printToFile: could not open file.");
+        return;
+    }
+    std::unordered_map<std::string, size_t> map;
+    for(auto& a : words){
+        //push into map and increment
+    }
+    for(size_t i = 0; i < map.size(); i++){//for each pair in map, add to file
+        
     }
 }
 
