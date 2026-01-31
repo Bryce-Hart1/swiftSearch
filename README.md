@@ -25,20 +25,18 @@ sortedList - takes all numbers and sorts them into a printable file, smallest to
 
 -sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed).
 
-listNumbers - takes all numbers and sorts them into a file in the order they appear.
+listNumbers - takes all numbers and sorts them into a file.
 
-listWords - takes all the words in the file and displays them in the order they appear.
+listWords - takes all the words and puts them in one file
 
-findCharacterFrequency - finds the frequency of all values.
+getcharacter - finds the frequency of all values.
 
-findWordFreq - finds the frequency of all words in the list.
+getcharacter - finds the frequency of all words in the list.
 
 findOne/findAll finds either one or all references to the string provided by the user in the files.
 
 
 # Usage
-for clang: compile with: 
-clang++ -std=c++26 main.cpp tokenize.cpp parse.cpp classes.cpp -o main 
 
 
 
@@ -52,9 +50,9 @@ For this one, I knew there would be a fixed size of ascii values coming in from 
 This class has gone through many revisions thus far, and has been the most challenging of the classes. The current design uses nodes that each have mutex locks wrapped over them, to lock nodes when they are being modified over. 
 
 ### NumberList
-
+For numberlist, I used async and std::futures to expect results from each thread, and adding them to one main vector when finished. From there, the user can sort or reverse the list
 ### File
-
+File builds ontop of std::fileSystem, to keep track of information of individial files
 
 ### FileTreeStructure
 
