@@ -17,7 +17,7 @@
  * 
  */
 void findAll(std::string filename, std::string keyWord){
-    print::Thread("findAll entered", filename);
+    print::Thread(str::enter, filename);
     using namespace std;
     int rowOffile = 0;
     simpleCount counter;
@@ -45,7 +45,7 @@ void findAll(std::string filename, std::string keyWord){
     }catch(const std::filesystem::filesystem_error& e){
         print::Error(e);
     }
-    print::Thread("Exiting findAll", filename);
+    print::Thread(str::exit, filename);
 }
     
 
@@ -57,7 +57,7 @@ void findAll(std::string filename, std::string keyWord){
  * 
  */
 bool findOne(std::string fileName, std::string keyWord){
-    print::Thread("Entering findOne", fileName);
+    print::Thread(str::enter, fileName);
     try{
         std::ifstream input(fileName);
         std::string word;
@@ -72,14 +72,14 @@ bool findOne(std::string fileName, std::string keyWord){
     }
 
     return false; 
-    print::Thread("Exiting findOne", fileName);
+    print::Thread(str::exit, fileName);
 }
 
 
 
 //should make a file since the amount of words could be very large
 void wordFreq(std::string fileName, atomicNode &wordTree){
-    print::Thread("Entering wordFreq", fileName);
+    print::Thread(str::enter, fileName);
     using namespace std;
     try{
         ifstream input(fileName);
@@ -92,7 +92,7 @@ void wordFreq(std::string fileName, atomicNode &wordTree){
         string error = e.what();
         print::Debug(error);
     }
-    print::Thread("Exiting wordFeq", fileName);
+    print::Thread(str::exit, fileName);
 }
 
 
@@ -103,7 +103,7 @@ void wordFreq(std::string fileName, atomicNode &wordTree){
  * As of right now, it does not track spaces but this is by design.
  */
 void charFreq(std::string fileName, characterBucket &cBucket){
-    print::Thread("charFreq entered", fileName);
+    print::Thread(str::enter, fileName);
     try{
         std::ifstream input(fileName);
         std::string word;
@@ -116,7 +116,7 @@ void charFreq(std::string fileName, characterBucket &cBucket){
     }catch(const std::exception &e){
         print::Error(e);
     }
-    print::Thread("charFreq exiting", fileName);
+    print::Thread(str::exit, fileName);
 }
 
 /**
@@ -125,7 +125,7 @@ void charFreq(std::string fileName, characterBucket &cBucket){
  */
 numberList singleList(std::string fileName){
 
-    print::Thread("singleList entered", fileName);
+    print::Thread(str::enter, fileName);
     numberList list{}; //returned list
     try{
         std::ifstream input(fileName);
@@ -144,7 +144,7 @@ numberList singleList(std::string fileName){
     }catch(const std::exception& e){
         print::Error(e);
     }
-    print::Thread("singleList exiting", fileName);
+    print::Thread(str::exit, fileName);
     return list;
 }
 

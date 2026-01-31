@@ -51,6 +51,7 @@ inline std::string toLowerCase(std::string str){
 
 
 
+
 namespace print{
 
 inline void Debug(std::string message){
@@ -77,4 +78,11 @@ inline void Thread(std::string message, std::string threadsFile){
 inline void Found(std::string keyWord, std::string fileName,int instance, int line){
     std::println(std::cout, "! -> instance |{}| of |keyWord| found at line |{}| : |{}|", instance, keyWord, line, fileName);
 }
+
+
+}
+
+namespace str{ //simple for now, may include times later
+    std::string enter = "Starting task ... ";
+    std::string exit = "Exiting task ... ";
 }
