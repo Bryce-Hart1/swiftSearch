@@ -20,11 +20,12 @@ void printInfo(){
     println(cout," #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
     println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
     println(cout,"#listWords - takes all the words in the file and displays them in the order they appear.");
-    println(cout,"#findCharacterFrequency - finds the frequency of all values");
-    println(cout,"findWordFreq - finds the frequency of all words in the list");
+    println(cout,"#getCharacter - finds the frequency of all values");
+    println(cout,"getWords - finds the frequency of all words in the list");
     sleep(1);
     println(cout,"possible flags (start with a - ):");
-    println(cout,"-threadtime (prints when file enter/exits)");
+    sleep(1);
+    println(cout,"-threadinfo (prints when file enter/exits)");
     println(cout,"-debug prints debug messages for important runtime events");
     println(cout,"-caps will not save capital letters, and searches will be done on the files converted to lowercase");
     println(cout,"If you would still like to contine, please enter this command now");
