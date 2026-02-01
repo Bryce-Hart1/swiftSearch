@@ -49,6 +49,20 @@ inline std::string toLowerCase(std::string str){
     return returnStr;
 }
 
+inline bool isNumber(const std::string& word){
+    if(word.empty()){
+        return false;
+    }
+    if(word.at(0) >= '0' && word.at(0) <= '9'){
+        return true;
+    }
+    for(size_t i = 0; i < word.length(); i++){ //might remove/optimize later
+        if(word.at(i) >= '0' && word.at(i) <= '9'){
+        return true; }    
+    }
+    return false;
+}
+
 
 
 
@@ -57,7 +71,7 @@ namespace print{
 inline void Debug(std::string message){
     if(DEBUG_ACTIVE_FLAG){
         std::lock_guard<std::mutex> lock(printMutex);
-        std::string debugStatement = "DEBUG || ";
+        std::string debugStatement = "[DEBUG] || ";
         std::println(std::cout, "{} {}", debugStatement, message);
 
     }
@@ -66,17 +80,20 @@ inline void Debug(std::string message){
 //logs thread errors without interweaving. takes while exception as input
 inline void Error(const std::exception& e){
     std::lock_guard<std::mutex> lock(printMutex);
-    std::cerr << "EXCEPTION :: " <<  e.what() << std::endl;
+    std::cerr << "[EXCEPTION] :: " <<  e.what() << std::endl;
 }
 
 inline void Thread(std::string message, std::string threadsFile){
     std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
-    std::string threadStatement = ("THREAD [" + threadsFile + "]~~ ");
+    std::string threadStatement = ("[THREAD] [" + threadsFile + "]~~ ");
     std::println(std::cout, "{} {} ", threadStatement, message);
 }
 
 inline void Found(std::string keyWord, std::string fileName,int instance, int line){
     std::println(std::cout, "! -> instance |{}| of |keyWord| found at line |{}| : |{}|", instance, keyWord, line, fileName);
+}
+inline void User(std::string msg){
+    std::println(std::cout, "[USER] {}", msg);
 }
 
 
