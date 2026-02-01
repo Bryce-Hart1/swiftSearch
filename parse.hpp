@@ -8,8 +8,6 @@
 
 void findAll(file filename, std::string keyWord);
 
-bool findOne(file filename, std::string keyWord);
-
 void wordFreq(file fileName, atomicNode &wordTree);
 
 void charFreq(file fileName, characterBucket &cBucket);
