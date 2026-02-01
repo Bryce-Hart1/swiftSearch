@@ -58,7 +58,7 @@ int main(int argc, char *argv[]){
     file root; 
     Timer mainWatch;
     mainWatch.start(); //start timer
-    fileTreeStructure fileStruct = *tokenize(argumentArr);
+    fileTreeStructure fileStruct = *tokenize(argumentArr, std::ref(mainWatch));
     print::Debug("Debug mode is on");
 
     assignOperation(operationTypeOfParse, fileStruct.createFileQueue());

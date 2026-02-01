@@ -6,9 +6,9 @@
 #include<thread>
 
 
-void findAll(std::string filename, std::string keyWord);
+void findAll(file filename, std::string keyWord);
 
-bool findOne(std::string filename, std::string keyWord);
+bool findOne(file filename, std::string keyWord);
 
 void wordFreq(file fileName, atomicNode &wordTree);
 

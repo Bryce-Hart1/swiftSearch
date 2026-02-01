@@ -11,6 +11,6 @@ std::string toLowerCase(std::string str);
 
 bool assignTokenOne(std::string tokenOne);
 
-void justifyFlags(std::vector<std::string> flagsDetected);
+void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch);
 
-fileTreeStructure* tokenize(std::string input);
+fileTreeStructure* tokenize(std::string input, Timer& watch);

@@ -56,7 +56,7 @@ bool assignTokenOne(std::string tokenOne){
  *  -find finds word.
  *  for now implementation returns no signs that a flag failed to set, may change later
  */
-void justifyFlags(std::vector<std::string> flagsDetected){
+void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
 
     print::Debug("justifyFlags() entered");
     std::array<std::string, 4> posFlag = {"-debug", "-caps", "-threadinfo", "-floatlist"}; 
@@ -80,12 +80,14 @@ void justifyFlags(std::vector<std::string> flagsDetected){
     }
     if(operationTypeOfParse == OP_TYPE::FIND_ALL || operationTypeOfParse == OP_TYPE::FIND_ONE){
         print::Debug("Operation type is: search");
+        watch.stop();
         std::println(std::cout, "Please enter the word you are looking for");
         std::cin >> LOOK_FOR_WORD;
         if(NO_CAPITALS_FLAG){
             LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
         }
         std::println(std::cout, "Will scan for: {}", LOOK_FOR_WORD);
+        watch.start();
     }
     
 }
@@ -102,7 +104,7 @@ void justifyFlags(std::vector<std::string> flagsDetected){
  * @returns a filetree structure if valid, and if not returns a nullptr
  */
 
-fileTreeStructure* tokenize(std::string input){
+fileTreeStructure* tokenize(std::string input, Timer& watch){
     print::Debug("tokenize() entered");
     std::vector<std::string> tokens;
     std::string fileToLook;
@@ -128,7 +130,7 @@ fileTreeStructure* tokenize(std::string input){
     for(size_t i = 2; i < tokens.size(); i++){
         flags.push_back(tokens.at(i));
     }
-    justifyFlags(flags); //sets global values here
+    justifyFlags(flags, std::ref(watch)); //sets global values here
     file root(tokens.at(1)); //root fileName should be found here
 
     

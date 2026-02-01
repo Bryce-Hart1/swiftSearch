@@ -16,8 +16,8 @@
  * @param keyWord will return this count of this string to the shared memory, which is just a shared count
  * 
  */
-void findAll(std::string filename, std::string keyWord){
-    print::Thread(str::enter, filename);
+void findAll(file f, std::string keyWord){
+    print::Thread(str::enter, f.getFileName());
     using namespace std;
     int rowOffile = 0;
     simpleCount counter;
@@ -25,7 +25,7 @@ void findAll(std::string filename, std::string keyWord){
     string line;
 
     try{
-    ifstream inputFile(filename);
+    ifstream inputFile(f.filePathToStr());
         if(inputFile.is_open()){
             while(getline(inputFile, line)){
                 istringstream strstream(line);
@@ -34,18 +34,20 @@ void findAll(std::string filename, std::string keyWord){
             while(strstream >> word){
                 if(keyWord == word){
                     counter.incrementBy(1);
-                    print::Found(keyWord, filename, counter.getCount(), rowOffile);
+                    print::Found(keyWord, f.getFileName(), counter.getCount(), rowOffile);
                 }
 
             }
         }
-    }
+        }else{
+        print::Debug("File " + f.getFileName() + " did not open");
+        }
 
 
     }catch(const std::filesystem::filesystem_error& e){
         print::Error(e);
     }
-    print::Thread(str::exit, filename);
+    print::Thread(str::exit, f.getFileName());
 }
     
 
@@ -56,14 +58,16 @@ void findAll(std::string filename, std::string keyWord){
  * @brief finds and returns as soon as keyword is found, even if keyword is inside of another word
  * 
  */
-bool findOne(std::string fileName, std::string keyWord){
-    print::Thread(str::enter, fileName);
+bool findOne(file f, std::string keyWord){
+    print::Thread(str::enter, f.getFileName());
+    int line = 0; //temp for now
     try{
-        std::ifstream input(fileName);
+        std::ifstream input(f.filePathToStr());
 
         std::string word;
         while(input >> word){
             if(word == keyWord){
+                print::Found(keyWord, f.getFileName(), 0, line);
                 return true;
             }
         }
@@ -73,7 +77,7 @@ bool findOne(std::string fileName, std::string keyWord){
     }
 
     return false; 
-    print::Thread(str::exit, fileName);
+    print::Thread(str::exit, f.getFileName());
 }
 
 
@@ -253,15 +257,15 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
             }
             case OP_TYPE::FIND_ALL: {
                 while(!filesList.empty()){
-                threadVector.emplace_back(findAll, filesList.front().getFileName(), LOOK_FOR_WORD);
+                threadVector.emplace_back(findAll, filesList.front(), LOOK_FOR_WORD);
                 filesList.pop();
             }
             joinThreads(threadVector);
             break;
             }
-            case OP_TYPE::FIND_ONE: {
+            case OP_TYPE::FIND_ONE: { //going to rework so it finds just one throughout all files in the future
             while(!filesList.empty()){
-            threadVector.emplace_back(findOne, filesList.front().getFileName(), LOOK_FOR_WORD);
+            threadVector.emplace_back(findOne, filesList.front(), LOOK_FOR_WORD);
             filesList.pop();}
             joinThreads(threadVector);
             break;
