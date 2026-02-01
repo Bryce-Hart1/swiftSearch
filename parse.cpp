@@ -233,8 +233,11 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                     filesList.pop();
                 }
                 joinThreads(threadVector);
-                print::Debug("Queue sucessfully created with size" + std::to_string(threadVector.size()));
-                
+                std::vector<std::string> wordVec;
+                wordTree.saveSet("", wordVec);
+                print::Debug(std::to_string(wordVec.size()) + "Words saved");
+                print::User("All words are saved in Words.txt"); 
+                wordTree.printTofile("Words.txt", wordVec);  
                 break;
             }case OP_TYPE::FIND_ALL: {
                 while(!filesList.empty()){

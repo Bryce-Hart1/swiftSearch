@@ -126,12 +126,18 @@ void atomicNode::printTofile(std::string predef, std::vector<std::string>& words
         print::Debug("Error in numberList::printToFile: could not open file.");
         return;
     }
-    std::unordered_map<std::string, size_t> map;
-    for(auto& a : words){
-        //push into map and increment
-    }
-    for(size_t i = 0; i < map.size(); i++){//for each pair in map, add to file
-        
+    print::Debug("Amount of words to print to file: " + std::to_string(words.size()));
+    size_t counter = 0;
+    std::string prev = "";
+    for(auto& word : words){
+        if(prev == word){
+            prev = word;
+            counter++;
+        }else{ //else, we print the current amount we have (could be one ) and reset counter and update previous
+            output << word << ":" << std::to_string(counter) << std::endl;
+            prev = word;
+            counter = 1; //because if we reset again then we need to show that at least one instance was shown
+        }
     }
 }
 
