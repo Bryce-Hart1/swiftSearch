@@ -59,11 +59,15 @@ In this project, I wanted to try OOP in a language that I hadn't yet used, what 
 ### charBucket
 For this one, I knew there would be a fixed size of ascii values coming in from the user, so I made an array of every possible char and paired a simple atomic counter to it.
 This would be a part of the charbucket structure:
+```
 [g][h][i][k]...
 [1][3][7][9]...
+```
 The goal was simple - create a fast lookup for any char value, and update its counter atomically. This was pretty easily done, with me wrapping over a single bucket, looking like this:
+```
 [g]
 [1]
+```
 This way I could 0 out these counts and print the ones that were found more than 0 times, in a way that is already allocated and cheap on time and memory.
 ### atomicNode
 This class has gone through many revisions thus far, and has been the most challenging of the classes. The current design uses nodes that each have mutex locks wrapped over them, to lock nodes when they are being modified over. My main goal was to use a trie, which I hadnt really used in class and only had one run in with at ICPC. Each node has a few properties - a mutex lock, a char value, and a count. 
