@@ -33,7 +33,7 @@ getcharacter - finds the frequency of all values.
 
 getcharacter - finds the frequency of all words in the list.
 
-findOne/findAll finds either one or all references to the string provided by the user in the files.
+findAll finds either one or all references to the string provided by the user in the files.
 
 
 # Usage

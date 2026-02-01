@@ -25,7 +25,6 @@ enum class OP_TYPE{
     CHAR_FREQ,
     WORD_FREQ,
     FIND_ALL,
-    FIND_ONE
 };
 
 inline OP_TYPE operationTypeOfParse; //global indicator for operatation to be done on files

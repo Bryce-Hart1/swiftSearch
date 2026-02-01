@@ -14,7 +14,6 @@ void printInfo(){
     sleep(1);
     println(cout,"possible # operations: ");
     sleep(1);
-    println(cout, "findOne - returns as soon as one instance of the word is found");
     println(cout, "#findAll - returns all the times the instance is found");
     println(cout," #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
     println(cout," #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");

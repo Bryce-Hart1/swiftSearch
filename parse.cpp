@@ -53,34 +53,6 @@ void findAll(file f, std::string keyWord){
 
 
 
-
-/**
- * @brief finds and returns as soon as keyword is found, even if keyword is inside of another word
- * 
- */
-bool findOne(file f, std::string keyWord){
-    print::Thread(str::enter, f.getFileName());
-    int line = 0; //temp for now
-    try{
-        std::ifstream input(f.filePathToStr());
-
-        std::string word;
-        while(input >> word){
-            if(word == keyWord){
-                print::Found(keyWord, f.getFileName(), 0, line);
-                return true;
-            }
-        }
-    }
-    catch(const std::exception& e){
-        print::Error(e);
-    }
-
-    return false; 
-    print::Thread(str::exit, f.getFileName());
-}
-
-
 /**
  * @fn takes a passed in atomicNode and adds words to it, returning when finished
  * @param f the file being passed in
@@ -260,13 +232,6 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 threadVector.emplace_back(findAll, filesList.front(), LOOK_FOR_WORD);
                 filesList.pop();
             }
-            joinThreads(threadVector);
-            break;
-            }
-            case OP_TYPE::FIND_ONE: { //going to rework so it finds just one throughout all files in the future
-            while(!filesList.empty()){
-            threadVector.emplace_back(findOne, filesList.front(), LOOK_FOR_WORD);
-            filesList.pop();}
             joinThreads(threadVector);
             break;
             }

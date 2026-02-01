@@ -10,8 +10,8 @@
 
 //Will throw true if there is an error assigning token. If this occurs, program will exit from tokenize
 bool assignTokenOne(std::string tokenOne){
-    std::array<std::string, 8> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
-    "#listnumbers", "#getcharacters", "#getwords", "#findone", "#findall"};
+    std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
+    "#listnumbers", "#getcharacters", "#getwords", "#findall"};
     tokenOne = toLowerCase(tokenOne);
     std::cout << tokenOne << "\n";
     int foundAt = -1;
@@ -34,8 +34,6 @@ bool assignTokenOne(std::string tokenOne){
         case 4: operationTypeOfParse = OP_TYPE::CHAR_FREQ;
         break;
         case 5: operationTypeOfParse = OP_TYPE::WORD_FREQ;
-        break;
-        case 6: operationTypeOfParse = OP_TYPE::FIND_ONE;
         break;
         case 7: operationTypeOfParse = OP_TYPE::FIND_ALL;
         break;
@@ -78,7 +76,7 @@ void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
             print::Debug("Float numbers flag set");
         }
     }
-    if(operationTypeOfParse == OP_TYPE::FIND_ALL || operationTypeOfParse == OP_TYPE::FIND_ONE){
+    if(operationTypeOfParse == OP_TYPE::FIND_ALL){
         print::Debug("Operation type is: search");
         watch.stop();
         std::println(std::cout, "Please enter the word you are looking for");
