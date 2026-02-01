@@ -124,15 +124,6 @@ Count the frequency of each word across all files:
 
 ### Search Operations
 
-#### Find One
-Search for the first occurrence of a word and stop:
-
-```bash
-./bin/swiftSearch #findone /path/to/directory
-```
-
-You will be prompted to enter the word to search for.
-
 #### Find All
 Search for all occurrences of a word across all files:
 
