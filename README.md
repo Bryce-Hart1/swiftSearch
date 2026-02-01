@@ -17,7 +17,7 @@ Next, the name of the file or directory that you are searching inside of. This c
 files.
 Third, you will list a flag (if you want)
 
-The possible operations start with # when entering the command line, and they are as follows:
+```The possible operations (start with #) are as follows:
 
 info - lists basic info of files, such as if its a directory, name, and size.
 
@@ -34,13 +34,13 @@ getcharacter - finds the frequency of all values.
 getcharacter - finds the frequency of all words in the list.
 
 findAll finds either one or all references to the string provided by the user in the files.
-
-The possible flags that can be set are as follows:
+```
+```The possible flags that can be set are as follows:
 -debug - just general debug information relating to functions and methods inside the program.
 -threadinfo - will give you information on when threads enter/exit their planned scope
 -caps - words on any word-related commands, and will ignore capital letters for storing and displaying.
 -float list - works for any number operations, and will keep the precision of decimals up to a certain point
-
+```
 
 # Usage
 ## System Requirements
