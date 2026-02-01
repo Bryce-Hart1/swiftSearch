@@ -45,29 +45,26 @@ class atomicNode {
 };
 
 
-/**
- * @class pairs with character bucket
- * increment - increments atomic count
- */
 class atomCharPair{
     public:
     void increment();
     char getValue();
     int getCount();
+    void setIntialValue();
     private:
     char value;
-    std::atomic<unsigned int> count;
+    std::atomic<size_t> count;
 };
 
 
 class characterBucket {
     
 public:
-    characterBucket(bool ignore);
+    characterBucket();
     void addTo(char value);
     void printAll();
     char getValueAt(int value);
-    unsigned int getCounterAt(int value);
+    size_t getCounterAt(int value);
 
 
 private:

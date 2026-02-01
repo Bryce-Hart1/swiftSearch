@@ -153,6 +153,9 @@ void atomicNode::printTofile(std::string predef, std::vector<std::string>& words
 
 /**
  * @class partners with characterBucket
+ * holds a set of values 
+ * [a]
+ * [1]
  */
 void atomCharPair::increment(){
     this->count.fetch_add(1);
@@ -164,16 +167,27 @@ int atomCharPair::getCount(){
 char atomCharPair::getValue(){
     return (this->value);
 }
+void atomCharPair::setIntialValue(){
+    this->count = 0;
+}
 
 
 /**
  * @class characterBucket - stores counts of all characters found
  * @details does a opertation to add characters to buckets to print the count of them later
  * only will add ascii values to buckets (extended ascii: 0 - 255)
- * 
+ * holds in array style, where everytime an element is accessed by the value of its char
+ * [a][b][c][d][e]...
+ * [1][0][9][3][5]...
+ * MycharacterBucket.addTo(b);
+ * [a][b][c][d][e]...
+ * [1][1][9][3][5]...
  */
-characterBucket::characterBucket(bool ignore){
-    this->ignoreCaps = ignore;
+characterBucket::characterBucket(){
+    this->ignoreCaps = NO_CAPITALS_FLAG;
+    for(size_t i = 0; i < this->buckets.size(); i++){
+        buckets.at(i).setIntialValue();
+    }
 }
 
 
@@ -182,24 +196,32 @@ void characterBucket::addTo(char value){
 }
 
 void characterBucket::printAll(){
+    using namespace std;
     for(size_t i = 0; i < this->buckets.size(); i++){
-        if(ignoreCaps){
-            const int dist = 32; //distance from A to a in ascii
-            if(i < 'A' && 'Z' < i){//better A and Z print nothing
-                if('a' <= i && i <= 'z'){ //between a and z, add counts from the capitals
-                    std::println(std::cout, "{}: count: {}", getValueAt(i), (getCounterAt(i) + getCounterAt(i-dist)) );
+        if(getCounterAt(i) > 0){
+            if(ignoreCaps){
+                const int distance = 32;
+                if(i >= 'A' && i <= 'Z'){
+                    continue; 
                 }
+                else if(i >= 'a' && i <= 'z'){
+                    println(cout, "{}: count: {}", (char)i, getCounterAt(i) + getCounterAt(i - distance));
+                }
+                else{ //print non alphabet
+                    println(cout, "{}: count: {}", (char)i, getCounterAt(i));
+                }
+            }else{ // no ignore flag, just print all of them
+                println(cout, "{}: count: {}", (char)i, getCounterAt(i));
             }
         }
     }
-
 }
 
 char characterBucket::getValueAt(int value){
     return (this->buckets.at(value).getValue());
 }
 
-unsigned int characterBucket::getCounterAt(int value){
+size_t characterBucket::getCounterAt(int value){
     return (this->buckets.at(value).getCount());
 }
 

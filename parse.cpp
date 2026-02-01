@@ -111,21 +111,24 @@ void wordFreq(file f, atomicNode &wordTree){
  * puts all characters found in the file into a combined charbucket
  * As of right now, it does not track spaces but this is by design.
  */
-void charFreq(std::string fileName, characterBucket &cBucket){
-    print::Thread(str::enter, fileName);
+void charFreq(file f, characterBucket &cBucket){
+    print::Thread(str::enter, f.getFileName());
+    size_t debugCounter = 0;
     try{
-        std::ifstream input(fileName);
+        std::ifstream input(f.filePathToStr());
         std::string word;
 
         while(input >> word){
             for(char letter : word){
                 cBucket.addTo(letter);
+
             }
         }
     }catch(const std::exception &e){
         print::Error(e);
     }
-    print::Thread(str::exit, fileName);
+    print::Debug(std::to_string(debugCounter) + " Chars found in " + f.getFileName());
+    print::Thread(str::exit, f.getFileName());
 }
 
 /**
@@ -224,15 +227,13 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 break;
             }
             case OP_TYPE::CHAR_FREQ: {
-                characterBucket bucketArr(NO_CAPITALS_FLAG);
+                characterBucket bucketArr;
                 while(!filesList.empty()){
-                    threadVector.emplace_back(charFreq, filesList.front().getFileName(), std::ref(bucketArr));
+                    threadVector.emplace_back(charFreq, filesList.front(), std::ref(bucketArr));
                     filesList.pop();
                 }
-                std::string charMes = ("queue sucessfully finished for charFreq vector size is" + std::to_string(threadVector.size()));
-                print::Debug(charMes);
                 joinThreads(threadVector); //seperate join function
-                bucketArr.printAll(); //print with method
+                bucketArr.printAll(); 
                 break;
             }
             case OP_TYPE::WORD_FREQ: {
@@ -272,7 +273,6 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
 
 
 void joinThreads(std::vector<std::thread>& threadVec){
-    print::Debug("joinThreads() Entered");
     for(std::thread& thread : threadVec){
         try{
             thread.join();

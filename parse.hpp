@@ -12,7 +12,7 @@ bool findOne(std::string filename, std::string keyWord);
 
 void wordFreq(file fileName, atomicNode &wordTree);
 
-void charFreq(std::string fileName, characterBucket &cBucket);
+void charFreq(file fileName, characterBucket &cBucket);
 
 numberList singleList(file f);
 
