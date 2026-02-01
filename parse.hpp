@@ -1,5 +1,6 @@
 #include "constants.hpp"
 #include "classes.hpp"
+#include "tokenize.hpp"
 
 #include<vector>
 #include<thread>
@@ -9,7 +10,7 @@ void findAll(std::string filename, std::string keyWord);
 
 bool findOne(std::string filename, std::string keyWord);
 
-void wordFreq(std::string fileName, atomicNode &wordTree);
+void wordFreq(file fileName, atomicNode &wordTree);
 
 void charFreq(std::string fileName, characterBucket &cBucket);
 

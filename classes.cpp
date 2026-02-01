@@ -52,7 +52,6 @@ unsigned int atomicNode::getCount(){
 }
 
 char atomicNode::getValue(){
-    std::lock_guard<std::mutex> lock(mtx);
     return this->value;
 }
 
@@ -88,27 +87,34 @@ void atomicNode::add(std::string word){
     atomicNode* current = this;
     
     for(size_t i = 0; i < word.length(); i++){
-        if(NO_CAPITALS_FLAG){ //first check if capitals are allowed. If not, set to lower
-            word[i] = toLower(word[i]);
+        char ch = word[i];
+        if(NO_CAPITALS_FLAG){
+            ch = toLower(ch);
         }
-        std::lock_guard<std::mutex> lock(current->mtx);
-
-        atomicNode* thisChild = nullptr; 
-        for(auto& c : current->children){ //check all children in vector
-            if(c->getValue() == word[i]){
+        
+        std::lock_guard<std::mutex> lock(current->mtx); //lock current
+        
+        atomicNode* thisChild = nullptr;
+        
+        for(auto& c : current->children){
+            if(c->value == ch){
                 thisChild = c.get();
                 break;
             }
         }
+        
+        if(thisChild == nullptr){
+            current->children.emplace_back(std::make_unique<atomicNode>(ch));
+            thisChild = current->children.back().get();
 
-
-        if(thisChild == nullptr){ //if none was found, assignment doesnt change and we create one here
-            children.emplace_back(std::make_unique<atomicNode>(value));
-            //children.push_back(std::make_unique<atomicNode>(value)); might be worth testing but since both are created inside make_unique idk
         }
+        
         current = thisChild;
     }
+    
+    //these need to be outside any lock since they acquire their own locks anyway
     current->setEndPointTrue();
+    current->increment();
 }
 
 //print everything but root, and only if it is an endpoint
@@ -120,6 +126,7 @@ void atomicNode::saveSet(std::string prefix, std::vector<std::string>& allwords)
         child->saveSet(prefix + child->value, allwords);
     }
 }
+
 void atomicNode::printTofile(std::string predef, std::vector<std::string>& words){
     std::ofstream output(predef);
     if(!output.is_open()){

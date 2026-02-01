@@ -77,23 +77,31 @@ bool findOne(std::string fileName, std::string keyWord){
 }
 
 
-
-//should make a file since the amount of words could be very large
-void wordFreq(std::string fileName, atomicNode &wordTree){
-    print::Thread(str::enter, fileName);
+/**
+ * @fn takes a passed in atomicNode and adds words to it, returning when finished
+ * @param f the file being passed in
+ * @param wordTree the shared atomicNode Tree
+ */
+void wordFreq(file f, atomicNode &wordTree){
+    print::Thread(str::enter, f.getFileName());
     using namespace std;
+    size_t count = 0;
     try{
-        ifstream input(fileName);
+        ifstream input(f.filePathToStr());
         string word;
 
         while(input >> word){
+            if(!isNumber(word)){
             wordTree.add(word);
+            count++;
+            }
         }
     }catch(const exception& e){
         string error = e.what();
         print::Debug(error);
     }
-    print::Thread(str::exit, fileName);
+    print::Thread(to_string(count) + " words were added to tree.", f.getFileName());
+    print::Thread(str::exit, f.getFileName());
 }
 
 
@@ -183,7 +191,6 @@ numberList singleList(file f){
 void assignOperation(OP_TYPE operation, std::queue<file> filesList){
     std::vector<std::thread> threadVector;
 
-    print::Debug("assignOperation() entered.");
         switch(operation){
             case OP_TYPE::INFO :{ //making this simple operation run through on a single loop
                 print::Debug("Operation Type: INFO has started");
@@ -196,9 +203,9 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 }
                 print::Debug("INFO has finished.");
                 break;
-            }case OP_TYPE::LIST_NUMBERS: {
+            }
+            case OP_TYPE::LIST_NUMBERS: {
                 numberList mainList = numberListHelper::combinedList(filesList);
-                mainList.printList(); //eventually will have printable file format
                 mainList.printToFile("ListedNumbers.txt");
                 break;
             }
@@ -208,53 +215,56 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 mainList.reverse();
                 mainList.printToFile("ReverseSortedList.txt");
                 break;
-            }case OP_TYPE::SORTED_LIST: {
+            }
+            case OP_TYPE::SORTED_LIST: {
                 numberList mainList = numberListHelper::combinedList(filesList);
                 mainList.sort();
                 mainList.printToFile("SortedList.txt");
                 std::cout << "Size is " << mainList.sendIntVector().size() << " " << mainList.sendDoubleVector().size() << std::endl;
                 break;
-            }case OP_TYPE::CHAR_FREQ: {
+            }
+            case OP_TYPE::CHAR_FREQ: {
                 characterBucket bucketArr(NO_CAPITALS_FLAG);
                 while(!filesList.empty()){
                     threadVector.emplace_back(charFreq, filesList.front().getFileName(), std::ref(bucketArr));
                     filesList.pop();
-
                 }
                 std::string charMes = ("queue sucessfully finished for charFreq vector size is" + std::to_string(threadVector.size()));
                 print::Debug(charMes);
                 joinThreads(threadVector); //seperate join function
                 bucketArr.printAll(); //print with method
                 break;
-            }case OP_TYPE::WORD_FREQ: {
+            }
+            case OP_TYPE::WORD_FREQ: {
                 atomicNode wordTree('*'); //root
                 while(!filesList.empty()){
-                    threadVector.emplace_back(wordFreq, filesList.front().getFileName(), std::ref(wordTree));
+                    threadVector.emplace_back(wordFreq, filesList.front(), std::ref(wordTree));
                     filesList.pop();
                 }
                 joinThreads(threadVector);
                 std::vector<std::string> wordVec;
+                print::Debug("Root child count: " + std::to_string(wordTree.getChildCount()));
                 wordTree.saveSet("", wordVec);
                 print::Debug(std::to_string(wordVec.size()) + "Words saved");
                 print::User("All words are saved in Words.txt"); 
                 wordTree.printTofile("Words.txt", wordVec);  
                 break;
-            }case OP_TYPE::FIND_ALL: {
+            }
+            case OP_TYPE::FIND_ALL: {
                 while(!filesList.empty()){
                 threadVector.emplace_back(findAll, filesList.front().getFileName(), LOOK_FOR_WORD);
                 filesList.pop();
             }
             joinThreads(threadVector);
             break;
-            }case OP_TYPE::FIND_ONE: {
-
+            }
+            case OP_TYPE::FIND_ONE: {
             while(!filesList.empty()){
             threadVector.emplace_back(findOne, filesList.front().getFileName(), LOOK_FOR_WORD);
             filesList.pop();}
             joinThreads(threadVector);
             break;
             }
-        print::Debug("Exiting assignOperation");
     }
     
 }
@@ -267,8 +277,7 @@ void joinThreads(std::vector<std::thread>& threadVec){
         try{
             thread.join();
         }catch(const std::exception& e){
-            std::string error = e.what();
-            print::Debug(error);
+            print::Error(e);
         }
     }
     print::Debug("Threads have finished");
