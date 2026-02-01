@@ -10,9 +10,9 @@
 void printInfo(){
     using namespace std;
     println(cout,"Please input a file to parse in the following format");
-    println(cout,"#sortedList @fileName -flag");
+    println(cout,"#sortedList user/cool/file/directory -flag");
     sleep(1);
-    println(cout,"possible # operations: ");
+    println(cout,"possible # operations: (Start with a #): ");
     sleep(1);
     println(cout, "#findAll - returns all the times the instance is found");
     println(cout," #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
@@ -25,6 +25,7 @@ void printInfo(){
     println(cout,"possible flags (start with a - ):");
     sleep(1);
     println(cout,"-threadinfo (prints when file enter/exits)");
+    println(cout, "-floatlist will store numbers with a decimal place");
     println(cout,"-debug prints debug messages for important runtime events");
     println(cout,"-caps will not save capital letters, and searches will be done on the files converted to lowercase");
     println(cout,"If you would still like to contine, please enter this command now");
