@@ -37,27 +37,38 @@ findAll finds either one or all references to the string provided by the user in
 
 
 # Usage
+## System Requirements
+- **Operating System**: UNIX-based systems (Linux, macOS, BSD)
+- **Compiler**: C++20 compatible compiler (GCC 10+, Clang 10+)
+- **Standard Library**: Full C++20 standard library support
 
-
-
-
-# Design 
+## Start guide
+Please refer to the other markdown file in this repo titled: `STARTGUIDE.md` for further explanantion beyond what I go over here.
+### Compatibility Note
+This program is designed for UNIX-based systems and has not been tested on Windows. While most C++ standard library features are cross-platform, the build system and file path handling are UNIX-specific.
+# Design Choices
 
 ## built classes
+In this project, I wanted to try OOP in a language that I had'nt yet, what being c++. For competetive programing, I had used structs, but that is not what I wanted to try here. I wanted everything to act as its own, standalone unit that I could call on later outside of this project if I wanted to. To do this I created classes for everything that I thought could be. 
 ### charBucket
 For this one, I knew there would be a fixed size of ascii values coming in from the user, so I made an array of every possible char and paired a simple atomic counter to it.
+This would be a part of the charbucket structure:
+[g][h][i][k]...
+[1][3][7][9]...
+The goal was simple - create a fast lookup for any char value, and update its counter atomically. This was pretty easily done, with me wrapping over a single bucket, looking like this:
+[g]
+[1]
+This way I could 0 out these counts and print the ones that were found more that 0 times, in a way that is already allocated and cheap on time and memory.
 ### atomicNode
-This class has gone through many revisions thus far, and has been the most challenging of the classes. The current design uses nodes that each have mutex locks wrapped over them, to lock nodes when they are being modified over. 
-
+This class has gone through many revisions thus far, and has been the most challenging of the classes. The current design uses nodes that each have mutex locks wrapped over them, to lock nodes when they are being modified over. My main goal was to use a trie, which I hadnt really used in class and only had one run in with at ICPC. Each node has a few properties - a mutex lock, a char value, and a count. 
 ### NumberList
-For numberlist, I used async and std::futures to expect results from each thread, and adding them to one main vector when finished. From there, the user can sort or reverse the list
+For numberlist, I used async and std::futures to expect results from each thread, and adding them to one main vector when finished. From there, the user can sort or reverse the list, depending on what command they enter. This class also went through many revisions, and most of the ideas got scrapped. For example first, I was going to extend atomicNode to keep numbers - but I decided to scrap this as the idea was kind of redundant to what I had already made and while sure it would be fast, I didnt think it would be as fast as std::vector. So, with this in mind, I did research on how to add vectors together and settled on using std::async and std::futures to return vectors to one big vector and print.
 ### File
-File builds ontop of std::fileSystem, to keep track of information of individial files
-
+File builds ontop of std::fileSystem, to keep track of information of individial files. It keeps stats like size, name, and path, which are mostly wrappers over prexisting methods. 
 ### FileTreeStructure
-
+FileTreeStructure is pretty interesting. Its not even a tree, actually. FileTreeStructure takes all files that would be scanned and puts them into a vector. From there, a method sorts them into a queue, and from there is assigned to individual threads
 ## Printing
-std::print was used to keep printing atomic, and was used in main to keep conformity throughout. I also wrapped many simular print functions in constants.hpp under the print namespace just to give a little clarity and less visual clutter.
-
+std::print was used to keep printing atomic, and was used in main to keep conformity throughout, and also gave me a chance to try out more modern c++ features. I also wrapped many simular print functions in constants.hpp under the print namespace just to give a little clarity and less visual clutter.
 ## Thread Usage
-
+Coming into this project, I was going to assign multiple threads to an individual file, but not only would that complicate the work, it also wasnt really needed.
+For every file class, only one thread is assigned to each. 
