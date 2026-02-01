@@ -15,7 +15,7 @@ Before using swiftSearch, ensure you have the following installed:
 ### 1. Clone or Download the Repository
 
 ```bash
-git clone <repository-url>
+git clone <https://github.com/Bryce-Hart1/swiftSearch>
 cd swiftSearch
 ```
 
