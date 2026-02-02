@@ -1,4 +1,10 @@
 # swiftSearch
+ ____          _  __ _   ____                      _     
+/ ___|_      _(_)/ _| |_/ ___|  ___  __ _ _ __ ___| |__  
+\___ \ \ /\ / / | |_| __\___ \ / _ \/ _` | '__/ __| '_ \ 
+ ___) \ V  V /| |  _| |_ ___) |  __/ (_| | | | (__| | | |
+|____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|
+
 This is my multithreaded-focused project, which I will be using to show my knowledge of multithreading and OOP in C++ 
 The main goal of this project is to show ADT design and multithreading to create runtime-effective searching. 
 
