@@ -6,7 +6,6 @@
 #include<unistd.h>
 
 
-
 void printInfo(){
     using namespace std;
     println(cout,"Please input a file to parse in the following format");
@@ -47,25 +46,19 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
     }
     std::string debug = ("ArgArr is " + argumentArr);
     print::Debug(debug);
-
 }
-
 
 int main(int argc, char *argv[]){
     print::Logo();
-    std::string argumentArr;
+    std::string argumentArr = "";
     checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
-    file root; 
     Timer mainWatch;
-    mainWatch.start(); //start timer
+    mainWatch.start(); //start timer for how long program takes
     fileTreeStructure fileStruct = *tokenize(argumentArr, std::ref(mainWatch));
     print::Debug("Debug mode is on");
-
     assignOperation(operationTypeOfParse, fileStruct.createFileQueue());
-    
+
     mainWatch.stop();
     std::println(std::cout, "Opertation has finished in {}", mainWatch.readableTime());
-
-
     print::Debug("Program sucessfully exited");
 }
