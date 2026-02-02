@@ -2,9 +2,7 @@
 #include"constants.hpp"
 
 #include<filesystem>
-#include<vector>
 #include<sstream>
-#include<functional>
 #include<queue>
 
 
@@ -12,9 +10,10 @@
 bool assignTokenOne(std::string tokenOne){
     std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
     "#listnumbers", "#getcharacters", "#getwords", "#findall"};
+
     tokenOne = toLowerCase(tokenOne);
-    std::cout << tokenOne << "\n";
     int foundAt = -1;
+
     for(size_t i = 0; i < Tokens.size(); i++){
         if(Tokens.at(i) == tokenOne){
             foundAt = i;
@@ -48,11 +47,7 @@ bool assignTokenOne(std::string tokenOne){
 
 
 /**
- * -debug sets all debug messages to on
- *  -caps can only be called on char or string 
- *  -threadtime prints time that thread exits, along with file scanned
- *  -find finds word.
- *  for now implementation returns no signs that a flag failed to set, may change later
+ * @brief sets flags based off of user input
  */
 void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
 
@@ -132,9 +127,8 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
     file root(tokens.at(1)); //root fileName should be found here
 
     
-    try{
+    try{ //trys to create a fileStructure based off of root. If it fails, it will return a null pointer
        fileTreeStructure* structure = new fileTreeStructure(root);
-       print::Debug("Object fileTreeStructure has been created");
         return structure;
 
     }catch(const std::exception& e){
