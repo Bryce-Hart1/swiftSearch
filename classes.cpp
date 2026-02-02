@@ -13,7 +13,6 @@
 #include <sstream>
 #include <functional>
 #include <fstream>
-#include <cmath>
 #include <future>
 #include <algorithm>
 #include <fstream>
@@ -54,6 +53,8 @@ unsigned int atomicNode::getCount(){
 char atomicNode::getValue(){
     return this->value;
 }
+
+//endpoint just means that it is a word/phrase that needs saved
 
 void atomicNode::setEndPointTrue(){
     std::lock_guard<std::mutex> lock(mtx);
