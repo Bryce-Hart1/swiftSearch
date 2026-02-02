@@ -18,10 +18,10 @@
 #include<syncstream>
 #include<sstream>
 
-inline bool DEBUG_ACTIVE_FLAG;
-inline bool NO_CAPITALS_FLAG;
-inline bool SHOW_THREADTIME_FLAG;
-inline bool FLOAT_NUMBER_LIST_FLAG;
+inline bool DEBUG_ACTIVE_FLAG = false;
+inline bool NO_CAPITALS_FLAG = false;
+inline bool SHOW_THREADTIME_FLAG = false;
+inline bool FLOAT_NUMBER_LIST_FLAG = false;
 
 
 enum class OP_TYPE{
@@ -87,9 +87,11 @@ inline void Error(const std::exception& e){
 }
 
 inline void Thread(std::string message, std::string threadsFile){
+    if(SHOW_THREADTIME_FLAG){
     std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
     std::string threadStatement = ("[THREAD] [" + threadsFile + "]~~ ");
     std::println(std::cout, "{} {} ", threadStatement, message);
+    }
 }
 
 inline void Found(std::string keyWord, std::string fileName,int instance, int line){
@@ -106,7 +108,7 @@ inline void Logo(){
     println(cout,R"(\___ \ \ /\ / / | |_| __\___ \ / _ \/ _` | '__/ __| '_ \ )");
     println(cout,R"( ___) \ V  V /| |  _| |_ ___) |  __/ (_| | | | (__| | | |)");
     println(cout,R"(|____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|)");
-    println(cout,"=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=");
+    println(cout,"=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=");
 }
 
 }
