@@ -7,13 +7,13 @@
 |____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|
 ```
 
-This is my multithreaded-focused project, which I will be using to show my knowledge of multithreading and OOP in C++ 
+This is my multithreaded-focused and OOP Project in C++.
 The main goal of this project is to show ADT design and multithreading to create runtime-effective searching. 
 
 To start, you will enter a command. This command will include the directory you are working on and the operation
 that you would like to perform on it. Here is an example of a valid command:
 
-### ./swiftSearch #sortedList myFolder -threadtime -floatlist
+### ./swiftSearch #sortedList Desktop/CSCI/myFolder -threadtime -floatlist
 
 This command will search myFolder for all numbers, including those with a decimal point.
 
@@ -81,12 +81,21 @@ This way I could 0 out these counts and print the ones that were found more than
 This class has gone through many revisions thus far, and has been the most challenging of the classes. The current design uses nodes that each have mutex locks wrapped over them, to lock nodes when they are being modified over. My main goal was to use a trie, which I hadnt really used in class and only had one run in with at ICPC. Each node has a few properties - a mutex lock, a char value, and a count. 
 ### NumberList
 For numberlist, I used async and std::futures to expect results from each thread, and add them to one main vector when finished. From there, the user can sort or reverse the list, depending on what command they enter. This class also went through many revisions, and most of the ideas got scrapped. For example, first, I was going to extend atomicNode to keep numbers - but I decided to scrap this as the idea was kind of redundant to what I had already made, and while sure it would be fast, I didnt think it would be as fast as std::vector. So, with this in mind, I did research on how to add vectors together and settled on using std::async and std::futures to return vectors to one big vector and print.
+```
+[Thread1] ~~ <1,2,3>
+[Thread2] ~~ <4,9,0>
+[Thread3] ~~ <7,8,6>
+mainThread waits and grabs -> <1,2,3,4,9,0,7,8,6>
+user does operation on set.
+```
 ### File
 File builds ontop of std::fileSystem, to keep track of information of individial files. It keeps stats like size, name, and path, which are mostly wrappers over preexisting methods. 
 ### FileTreeStructure
-FileTreeStructure is pretty interesting. Its not even a tree, actually. FileTreeStructure takes all files that would be scanned and puts them into a vector. From there, a method sorts them into a queue, and from there is assigned to individual threads
+FileTreeStructure is pretty interesting. It's not even a tree, actually. FileTreeStructure takes all files that would be scanned and puts them into a vector. From there, a method sorts them into a queue, and from there is assigned to individual threads. 
+```
+In fileTreeStructure:
+</path/file>, </differentPath/file>, </otherPath/file>
+creates 3 threads!
+```
 ## Printing
 std::print was used to keep printing atomic, and was used in main to keep conformity throughout, and also gave me a chance to try out more modern c++ features. I also wrapped many simular print functions in constants.hpp under the print namespace just to give a little clarity and less visual clutter.
-## Thread Usage
-Coming into this project, I was going to assign multiple threads to an individual file, but not only would that complicate the work, but it wasn't really needed.
-For every file class, only one thread is assigned to each. 
