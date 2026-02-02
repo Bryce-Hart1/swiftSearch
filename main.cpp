@@ -15,8 +15,8 @@ void printInfo(){
     println(cout,"possible # operations: (Start with a #): ");
     sleep(1);
     println(cout, "#findAll - returns all the times the instance is found");
-    println(cout," #sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
-    println(cout," #-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
+    println(cout,"#sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
+    println(cout,"#-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
     println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
     println(cout,"#listWords - takes all the words in the file and displays them in the order they appear.");
     println(cout,"#getCharacter - finds the frequency of all values");
@@ -52,7 +52,7 @@ void checkArgLength(int argc, char *argv[], std::string &argumentArr){
 
 
 int main(int argc, char *argv[]){
-
+    print::Logo();
     std::string argumentArr;
     checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
     file root; 
