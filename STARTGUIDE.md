@@ -39,15 +39,25 @@ The compiled executable will be located in the `bin/` directory.
 ```bash
 ./bin/swiftSearch
 ```
+You should see:
+```
+ ____          _  __ _   ____                      _     
+/ ___|_      _(_)/ _| |_/ ___|  ___  __ _ _ __ ___| |__  
+\___ \ \ /\ / / | |_| __\___ \ / _ \/ _` | '__/ __| '_ \ 
+ ___) \ V  V /| |  _| |_ ___) |  __/ (_| | | | (__| | | |
+|____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|
+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+[USER] Enter a command:
 
-You should see the help information displaying available commands and flags.
+```
+This means the program is running as intended.
 
 ## Basic Usage
 
 swiftSearch follows this command structure:
 
 ```bash
-./bin/swiftSearch #operation @filepath [flags]
+#operation @filepath [flags]
 ```
 
 ### Command Structure
@@ -62,7 +72,7 @@ swiftSearch follows this command structure:
 Display basic information about files in a directory:
 
 ```bash
-./bin/swiftSearch #info /path/to/directory
+#info /path/to/directory
 ```
 
 **Output**: Filename, size, and full path for each file
@@ -75,7 +85,7 @@ Display basic information about files in a directory:
 Extract and list all numbers from files in the order they appear:
 
 ```bash
-./bin/swiftSearch #listnumbers /path/to/directory
+#listnumbers /path/to/directory
 ```
 
 **Output**: `ListedNumbers.txt` containing all numbers found
@@ -84,7 +94,7 @@ Extract and list all numbers from files in the order they appear:
 Extract and sort all numbers (smallest to largest):
 
 ```bash
-./bin/swiftSearch #sortedlist /path/to/directory
+#sortedlist /path/to/directory
 ```
 
 **Output**: `SortedList.txt` with numbers in ascending order
@@ -93,7 +103,7 @@ Extract and sort all numbers (smallest to largest):
 Extract and sort all numbers (largest to smallest):
 
 ```bash
-./bin/swiftSearch #-sortedlist /path/to/directory
+#-sortedlist /path/to/directory
 ```
 
 **Output**: `ReverseSortedList.txt` with numbers in descending order
@@ -106,7 +116,7 @@ Extract and sort all numbers (largest to smallest):
 Count the frequency of each character across all files:
 
 ```bash
-./bin/swiftSearch #getcharacters /path/to/directory
+#getcharacters /path/to/directory
 ```
 
 **Output**: Character-by-character frequency counts printed to console
@@ -115,7 +125,7 @@ Count the frequency of each character across all files:
 Count the frequency of each word across all files:
 
 ```bash
-./bin/swiftSearch #getwords /path/to/directory
+#getwords /path/to/directory
 ```
 
 **Output**: `Words.txt` containing words and their frequencies
@@ -128,7 +138,7 @@ Count the frequency of each word across all files:
 Search for all occurrences of a word across all files:
 
 ```bash
-./bin/swiftSearch #findall /path/to/directory
+#findall /path/to/directory
 ```
 
 You will be prompted to enter the word to search for.
@@ -143,7 +153,7 @@ Flags modify the behavior of operations and can be combined:
 Enable debug mode to see detailed runtime information:
 
 ```bash
-./bin/swiftSearch #sortedlist /path/to/directory -debug
+#sortedlist /path/to/directory -debug
 ```
 
 **Shows**: Operation progress, thread information, file processing details
@@ -152,7 +162,7 @@ Enable debug mode to see detailed runtime information:
 Display thread entry/exit messages:
 
 ```bash
-./bin/swiftSearch #getwords /path/to/directory -threadinfo
+#getwords /path/to/directory -threadinfo
 ```
 
 **Shows**: When threads start and finish processing each file
@@ -161,7 +171,7 @@ Display thread entry/exit messages:
 Ignore capitalization in character and word operations:
 
 ```bash
-./bin/swiftSearch #getwords /path/to/directory -caps
+#getwords /path/to/directory -caps
 ```
 
 **Effect**: 'A' and 'a' are treated as the same character/word
@@ -170,7 +180,7 @@ Ignore capitalization in character and word operations:
 Use floating-point numbers instead of integers for number operations:
 
 ```bash
-./bin/swiftSearch #sortedlist /path/to/directory -floatlist
+#sortedlist /path/to/directory -floatlist
 ```
 
 **Effect**: Processes numbers as `long double` instead of `long long int`
@@ -182,7 +192,12 @@ Use floating-point numbers instead of integers for number operations:
 Find all instances of "ERROR" in log files:
 
 ```bash
-./bin/swiftSearch #findall /var/log/myapp -debug
+#findall /var/log/myapp -debug
+```
+
+Then when prompted: 
+```
+ERROR
 ```
 
 ### Example 2: Extract and Sort Data
@@ -190,7 +205,7 @@ Find all instances of "ERROR" in log files:
 Sort numbers from CSV files, ignoring case:
 
 ```bash
-./bin/swiftSearch #sortedlist /data/csv_files -caps -floatlist
+#sortedlist /data/csv_files -caps -floatlist
 ```
 
 ### Example 3: Word Frequency Analysis
@@ -198,7 +213,7 @@ Sort numbers from CSV files, ignoring case:
 Count word frequencies in text documents (case-insensitive):
 
 ```bash
-./bin/swiftSearch #getwords /path/to/documents -caps -threadinfo
+#getwords /path/to/documents -caps -threadinfo
 ```
 
 Output will be saved to `Words.txt` in the current directory.
@@ -208,7 +223,7 @@ Output will be saved to `Words.txt` in the current directory.
 Get information about all files in a directory:
 
 ```bash
-./bin/swiftSearch #info ~/Desktop/project
+#info ~/Desktop/project
 ```
 
 ## Understanding Output Files
@@ -236,10 +251,11 @@ swiftSearch generates different output files depending on the operation:
 
 ## Troubleshooting
 
-### "No command detected"
+### "Message passed in is not of valid length. Please enter cmd now or return ? for help."
 - Ensure you're using the correct format: `#operation @filepath`
 - Operations must start with `#`
 - Check that the operation name is spelled correctly
+- Press ?, Enter if you need help remembering options.
 
 ### "File did not open"
 - Verify the filepath exists and is accessible
@@ -262,4 +278,4 @@ swiftSearch generates different output files depending on the operation:
 
 ## Getting Help
 
-For more detailed information about specific operations or flags, refer to the full documentation or source code comments.
+For more detailed information about specific operations or flags, refer to the code files, most helpful comments were left inside of cpp files.

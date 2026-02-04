@@ -13,7 +13,7 @@ The main goal of this project is to show ADT design and multithreading to create
 To start, you will enter a command. This command will include the directory you are working on and the operation
 that you would like to perform on it. Here is an example of a valid command:
 
-### ./swiftSearch #sortedList Desktop/CSCI/myFolder -threadtime -floatlist
+### #sortedList Desktop/CSCI/myFolder -threadtime -floatlist
 
 This command will search myFolder for all numbers, including those with a decimal point.
 
