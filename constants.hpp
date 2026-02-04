@@ -17,6 +17,9 @@
 #include<thread>
 #include<syncstream>
 #include<sstream>
+#include <unistd.h>
+
+
 
 inline bool DEBUG_ACTIVE_FLAG = false;
 inline bool NO_CAPITALS_FLAG = false;
@@ -77,7 +80,6 @@ inline void Debug(std::string message){
         std::lock_guard<std::mutex> lock(printMutex);
         std::string debugStatement = "[DEBUG] || ";
         std::println(std::cout, "{} {}", debugStatement, message);
-
     }
 }
 
@@ -110,6 +112,32 @@ inline void Logo(){
     println(cout,R"(|____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|)");
     println(cout,"=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=");
 }
+
+inline void Info(){
+    using namespace std;
+    println(cout,"Please input a file to parse in the following format");
+    println(cout,"#sortedList user/cool/file/directory -flag");
+    sleep(1);
+    println(cout,"possible # operations: (Start with a #): ");
+    sleep(1);
+    println(cout, "#findAll - returns all the times the instance is found");
+    println(cout,"#sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
+    println(cout,"#-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
+    println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
+    println(cout,"#listWords - takes all the words in the file and displays them in the order they appear.");
+    println(cout,"#getCharacter - finds the frequency of all values");
+    println(cout,"getWords - finds the frequency of all words in the list");
+    sleep(1);
+    println(cout,"possible flags (start with a - ):");
+    sleep(1);
+    println(cout,"-threadinfo (prints when file enter/exits)");
+    println(cout, "-floatlist will store numbers with a decimal place");
+    println(cout,"-debug prints debug messages for important runtime events");
+    println(cout,"-caps will not save capital letters, and searches will be done on the files converted to lowercase");
+    println(cout,"If you would still like to contine, please enter this command now");
+}
+
+
 
 }
 

@@ -3,55 +3,50 @@
 #include"classes.hpp"
 #include"constants.hpp"
 
-#include<unistd.h>
 
-
-void printInfo(){
-    using namespace std;
-    println(cout,"Please input a file to parse in the following format");
-    println(cout,"#sortedList user/cool/file/directory -flag");
-    sleep(1);
-    println(cout,"possible # operations: (Start with a #): ");
-    sleep(1);
-    println(cout, "#findAll - returns all the times the instance is found");
-    println(cout,"#sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
-    println(cout,"#-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
-    println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
-    println(cout,"#listWords - takes all the words in the file and displays them in the order they appear.");
-    println(cout,"#getCharacter - finds the frequency of all values");
-    println(cout,"getWords - finds the frequency of all words in the list");
-    sleep(1);
-    println(cout,"possible flags (start with a - ):");
-    sleep(1);
-    println(cout,"-threadinfo (prints when file enter/exits)");
-    println(cout, "-floatlist will store numbers with a decimal place");
-    println(cout,"-debug prints debug messages for important runtime events");
-    println(cout,"-caps will not save capital letters, and searches will be done on the files converted to lowercase");
-    println(cout,"If you would still like to contine, please enter this command now");
-}
-
-
-void checkArgLength(int argc, char *argv[], std::string &argumentArr){
-
-    if(argc < 3){ //If length is invalid, the user gets a set number of tries before the program exits
-        std::string newStr;
-        std::println(std::cout,"No command detected.");
-        printInfo(); //print list once before entering tries
-        std::getline(std::cin, newStr); //if this is still invalid, we can clean it up later so not to have redundant token breakup
-        argumentArr = newStr; //if they fail again just exit.
-    }else{
-        for(int i = 1; i < argc; ++i){
-            argumentArr += std::string(argv[i]) + " ";
+//just checks length, not validity. If not valid, return after telling the user it is wrong
+bool goodArg(const std::string &argumentArr){
+    if(argumentArr.empty()){
+        return false;
+    }
+    
+    size_t wordCount = 0;
+    bool inWord = false;
+    
+    for(char c : argumentArr){
+        if(!std::isspace(static_cast<unsigned char>(c))){
+            if(!inWord){
+                wordCount++;
+                inWord = true;
+            }
+        } else {
+            inWord = false;
         }
     }
-    std::string debug = ("ArgArr is " + argumentArr);
-    print::Debug(debug);
+    
+    return wordCount >= 2;
 }
 
-int main(int argc, char *argv[]){
+std::string boot(){
+    std::string arguments;
     print::Logo();
-    std::string argumentArr = "";
-    checkArgLength(argc, argv, argumentArr); //check intial Length if length is good, continue
+    print::User("Enter a command:");
+    std::getline(std::cin, arguments);
+    
+    while(!goodArg(arguments)){
+        print::User("Message passed in is not of valid length. Please enter cmd now or return ? for help.");
+        std::getline(std::cin, arguments);
+        
+        if(!arguments.empty() && arguments.at(0) == '?'){
+            print::Info();
+            print::User("Enter a command:");
+            std::getline(std::cin, arguments);
+        }
+    }
+    return arguments;
+}
+int main(){
+    std::string argumentArr = boot();
     Timer mainWatch;
     mainWatch.start(); //start timer for how long program takes
     fileTreeStructure fileStruct = *tokenize(argumentArr, std::ref(mainWatch));
