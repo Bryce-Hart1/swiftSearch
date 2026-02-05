@@ -7,7 +7,7 @@
 
 
 //Will throw true if there is an error assigning token. If this occurs, program will exit from tokenize
-bool assignTokenOne(std::string tokenOne){
+bool assignTokenOne(std::string tokenOne, Timer watch){
     std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
     "#listnumbers", "#getcharacters", "#getwords", "#findall"};
 
@@ -19,7 +19,6 @@ bool assignTokenOne(std::string tokenOne){
             foundAt = i;
         }
     }
-    print::Debug("Token one value: " + std::to_string(foundAt));
 
     switch(foundAt){ //set op type
         case 0: operationTypeOfParse = OP_TYPE::INFO;
@@ -38,17 +37,31 @@ bool assignTokenOne(std::string tokenOne){
         break;
         default : {
         print::Debug(("Token One is invalid and value is " + tokenOne));
-        return true;
+        return true;    }
         }
+
+        if(operationTypeOfParse == OP_TYPE::FIND_ALL){ //Since operationType was just set, see if its findall. If yes, wait for input
+        print::Debug("Operation type is: search");
+        watch.stop();
+        print::User("Please enter the word you are looking for:");
+        std::getline(std::cin, LOOK_FOR_WORD);
+        if(NO_CAPITALS_FLAG){
+            LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
+        }
+        print::User("Will look for -> " + LOOK_FOR_WORD + " <-");
+        watch.start();
     }
+
+    print::Debug("Token one value: " + std::to_string(foundAt));
     return false; 
 }
 
 
 /**
  * @brief sets flags based off of user input
+ * compares for - + the command so -debug as a whole string 
  */
-void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
+void justifyFlags(std::vector<std::string> flagsDetected){
 
     print::Debug("justifyFlags() entered");
     std::array<std::string, 4> posFlag = {"-debug", "-caps", "-threadinfo", "-floatlist"}; 
@@ -69,19 +82,7 @@ void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
             FLOAT_NUMBER_LIST_FLAG = true;
             print::Debug("Float numbers flag set");
         }
-    }
-    if(operationTypeOfParse == OP_TYPE::FIND_ALL){
-        print::Debug("Operation type is: search");
-        watch.stop();
-        print::User("Please enter the word you are looking for:");
-        std::getline(std::cin, LOOK_FOR_WORD);
-        if(NO_CAPITALS_FLAG){
-            LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
-        }
-        print::User("Will look for " + LOOK_FOR_WORD);
-        watch.start();
-    }
-    
+    }  
 }
 
 /**
@@ -97,7 +98,6 @@ void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
  */
 
 fileTreeStructure* tokenize(std::string input, Timer& watch){
-    print::Debug("tokenize() entered");
     std::vector<std::string> tokens;
 
 
@@ -118,16 +118,15 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
     for(size_t i = 2; i < tokens.size(); i++){
         flags.push_back(tokens.at(i));
     }
-    justifyFlags(flags, watch); //sets global values in here
+    justifyFlags(flags); //sets global values in here
 
-    if(assignTokenOne(tokens.at(0))){
+    if(assignTokenOne(tokens.at(0), watch)){
         print::Debug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }
 
     file root(tokens.at(1)); //root fileName should be found here
 
-    
     try{ //trys to create a fileStructure based off of root. If it fails, it will return a null pointer
        fileTreeStructure* structure = new fileTreeStructure(root);
         return structure;

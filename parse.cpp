@@ -12,7 +12,7 @@
 
 /**
  * @details 
- * @param filename name of the file the thread will work on
+ * @param f this is the file that is pulled from the queue for this thread to work on
  * @param keyWord will return this count of this string to the shared memory, which is just a shared count
  * 
  */
