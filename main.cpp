@@ -49,11 +49,9 @@ int main(){
     std::string argumentArr = boot();
     Timer mainWatch;
     mainWatch.start(); //start timer for how long program takes
-    fileTreeStructure fileStruct = *tokenize(argumentArr, std::ref(mainWatch));
-    print::Debug("Debug mode is on");
-    assignOperation(operationTypeOfParse, fileStruct.createFileQueue());
-
-    mainWatch.stop();
-    std::println(std::cout, "Opertation has finished in {}", mainWatch.readableTime());
+    fileTreeStructure fileStruct = *tokenize(argumentArr, std::ref(mainWatch)); //all tokens get assigned here 
+    assignOperation(operationTypeOfParse, fileStruct.createFileQueue()); //all work gets done here
+    mainWatch.stop(); //stop and print timer
+    print::User("Program has completed in " + mainWatch.readableTime());
     print::Debug("Program sucessfully exited");
 }
