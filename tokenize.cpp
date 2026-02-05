@@ -19,7 +19,7 @@ bool assignTokenOne(std::string tokenOne){
             foundAt = i;
         }
     }
-    print::Debug("Entering token one assignment...");
+    print::Debug("Token one value: " + std::to_string(foundAt));
 
     switch(foundAt){ //set op type
         case 0: operationTypeOfParse = OP_TYPE::INFO;
@@ -34,14 +34,13 @@ bool assignTokenOne(std::string tokenOne){
         break;
         case 5: operationTypeOfParse = OP_TYPE::WORD_FREQ;
         break;
-        case 7: operationTypeOfParse = OP_TYPE::FIND_ALL;
+        case 6: operationTypeOfParse = OP_TYPE::FIND_ALL;
         break;
-    }
-    if(foundAt == -1){
+        default : {
         print::Debug(("Token One is invalid and value is " + tokenOne));
         return true;
+        }
     }
-
     return false; 
 }
 
@@ -74,12 +73,12 @@ void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
     if(operationTypeOfParse == OP_TYPE::FIND_ALL){
         print::Debug("Operation type is: search");
         watch.stop();
-        std::println(std::cout, "Please enter the word you are looking for");
-        std::cin >> LOOK_FOR_WORD;
+        print::User("Please enter the word you are looking for:");
+        std::getline(std::cin, LOOK_FOR_WORD);
         if(NO_CAPITALS_FLAG){
             LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
         }
-        std::println(std::cout, "Will scan for: {}", LOOK_FOR_WORD);
+        print::User("Will look for " + LOOK_FOR_WORD);
         watch.start();
     }
     
@@ -100,9 +99,9 @@ void justifyFlags(std::vector<std::string> flagsDetected, Timer& watch){
 fileTreeStructure* tokenize(std::string input, Timer& watch){
     print::Debug("tokenize() entered");
     std::vector<std::string> tokens;
-    std::string fileToLook;
 
 
+    //I want to set falgs first so we can get things like print::debug up ASAP
     std::stringstream stream(input);
     std::string temp;
     while(stream >> temp){
@@ -111,11 +110,7 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
         for(std::string t : tokens){
             message += t + " |";
         }
-        print::Debug(message);
-    }
-    if(assignTokenOne(tokens.at(0))){
-        print::Debug("Error assigning token one, exiting");
-        std::exit(EXIT_FAILURE);
+        print::Debug(message); 
     }
 
     //sets some global booleans for tokens
@@ -123,7 +118,13 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
     for(size_t i = 2; i < tokens.size(); i++){
         flags.push_back(tokens.at(i));
     }
-    justifyFlags(flags, std::ref(watch)); //sets global values here
+    justifyFlags(flags, watch); //sets global values in here
+
+    if(assignTokenOne(tokens.at(0))){
+        print::Debug("Error assigning token one, exiting");
+        std::exit(EXIT_FAILURE);
+    }
+
     file root(tokens.at(1)); //root fileName should be found here
 
     
