@@ -9,7 +9,7 @@
 
 std::string toLowerCase(std::string str);
 
-bool assignTokenOne(std::string tokenOne, Timer watch);
+bool assignTokenOne(std::string tokenOne, Timer& watch);
 
 void justifyFlags(std::vector<std::string> flagsDetected);
 

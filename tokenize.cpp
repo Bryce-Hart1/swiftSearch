@@ -7,7 +7,7 @@
 
 
 //Will throw true if there is an error assigning token. If this occurs, program will exit from tokenize
-bool assignTokenOne(std::string tokenOne, Timer watch){
+bool assignTokenOne(std::string tokenOne, Timer &watch){
     std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
     "#listnumbers", "#getcharacters", "#getwords", "#findall"};
 
@@ -120,7 +120,7 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
     }
     justifyFlags(flags); //sets global values in here
 
-    if(assignTokenOne(tokens.at(0), watch)){
+    if(assignTokenOne(tokens.at(0), std::ref(watch))){ //token one works here, exits if there is an error assigning
         print::Debug("Error assigning token one, exiting");
         std::exit(EXIT_FAILURE);
     }

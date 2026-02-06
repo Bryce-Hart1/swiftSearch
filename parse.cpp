@@ -22,23 +22,19 @@ void findAll(file f, std::string keyWord){
     int rowOffile = 0;
     simpleCount counter;
 
-    string line;
-
+    char ch; //takes whats coming in character by character
+    parseWindow Window(keyWord.size());
     try{
     ifstream inputFile(f.filePathToStr());
+    inputFile >> std::noskipws; //reads everything w spaces
         if(inputFile.is_open()){
-            while(getline(inputFile, line)){
-                istringstream strstream(line);
-                string word;
-                rowOffile++;
-            while(strstream >> word){
-                if(keyWord == word){
-                    counter.incrementBy(1);
+            while(inputFile >> ch){
+                Window.move(ch);
+                if(Window.isCorrectSequence(keyWord)){
                     print::Found(keyWord, f.getFileName(), counter.getCount(), rowOffile);
+                    counter.incrementBy(1);
                 }
-
             }
-        }
         }else{
         print::Debug("File " + f.getFileName() + " did not open");
         }
