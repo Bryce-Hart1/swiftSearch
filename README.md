@@ -97,5 +97,15 @@ In fileTreeStructure:
 </path/file>, </differentPath/file>, </otherPath/file>
 creates 3 threads!
 ```
+### parseWindow
+parseWindow is used for findall and allowed me to add the ablitity to scan for multiple words. For example, if I had the phrase:
+```
+Hello, world!
+```
+The old way would just parse
+```
+|Hello,|
+```
+The new verison also scans spaces and as soon as it finds a direct match, it returns it to the user.
 ## Printing
 std::print was used to keep printing atomic, and was used in main to keep conformity throughout, and also gave me a chance to try out more modern c++ features. I also wrapped many simular print functions in constants.hpp under the print namespace just to give a little clarity and less visual clutter.
