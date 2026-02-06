@@ -16,7 +16,7 @@
 #include <future>
 #include <algorithm>
 #include <fstream>
-#include <unordered_map>
+#include <deque>
 
 char toLower(unsigned char value) {
     if(value >= 'A' && value <= 'Z') {
@@ -547,7 +547,8 @@ std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type)
         case fs::file_type::socket:     return "socket";
         case fs::file_type::unknown:    return "unknown";
         case fs::file_type::not_found:  return "not found";
-        default:                                     return "none";
+        default:                                     
+        return "none";
     }
 }
 
@@ -572,4 +573,26 @@ void fileTreeStructure::printAll(){
         //std::println(f.getFileName());
         std::println(std::cout, "path: {}", f.filePathToStr());
     }
+}
+
+
+/**
+ * @class parseWindow
+ */
+parseWindow::parseWindow(size_t sizeInChars) : windowSize(sizeInChars) {}
+
+void parseWindow::move(char c){
+    if(window.size() == windowSize){
+    window.pop_front();
+    }
+    window.push_back(c);
+}
+
+std::string parseWindow::getWindow() const {
+    return std::string(window.begin(), window.end());
+}
+    
+bool parseWindow::isCorrectSequence(const std::string& compare) const{
+    if(window.size() != compare.size()) return false;
+        return std::equal(window.begin(), window.end(), compare.begin());
 }

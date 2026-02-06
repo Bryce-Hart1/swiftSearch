@@ -9,7 +9,7 @@
 #include <functional>
 #include <queue>
 #include <filesystem>
-
+#include <deque>
 
 char toLower(unsigned char value);
 
@@ -175,3 +175,15 @@ namespace numberListHelper{
     numberList combinedList(std::queue<file> files);
     inline std::mutex combinedListLock;
 }
+
+
+class parseWindow{
+    public:
+    parseWindow(size_t size);
+    void move(char c);
+    std::string getWindow() const;
+    bool isCorrectSequence(const std::string& compare) const;
+    private:
+    std::deque<char> window;
+    size_t windowSize;
+};
