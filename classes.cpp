@@ -305,19 +305,10 @@ void numberList::sort(){
 
 void numberList::reverse(){
     if(isIntTypeList()){
-        for(size_t i = 0; i < iList.size()/2; i++){
-            long long int toFront = iList[iList.size() - i];
-            iList[iList.size() - i] = iList[i];
-            iList[i] = toFront;
-        }
+        std::reverse(this->iList.begin(), this->iList.end());
     }else{
-        for(size_t i = 0; i < dList.size(); i++){
-            long double toFront = dList[dList.size() - i];
-            dList[dList.size() - 1] = dList[i];
-            dList[i] = toFront;
-        }
+        std::reverse(this->dList.begin(), this->dList.end());
     }
-
 }
 
 void numberList::printList(){
@@ -420,7 +411,9 @@ std::string Timer::readableTime(){
 
 
 
-
+/**
+ * @class file creads a file object for every file in the directory being scanned
+ */
 file::file(){
     this->fileName = "Unassigned";
 }
