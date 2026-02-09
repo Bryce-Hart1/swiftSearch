@@ -12,7 +12,7 @@ bool goodArg(const std::string &argumentArr){
     size_t wordCount = 0;
     bool inWord = false;
     
-    for(char c : argumentArr){
+    for(char c : argumentArr){ //count words in argument
         if(!std::isspace(static_cast<unsigned char>(c))){
             if(!inWord){
                 wordCount++;
@@ -22,7 +22,7 @@ bool goodArg(const std::string &argumentArr){
             inWord = false;
         }
     }
-    return wordCount >= 2;
+    return wordCount >= 2; //return true if 2 or more words detected
 }
 
 //checks length/gets string from user. Enters a loop till user enters one of correct length

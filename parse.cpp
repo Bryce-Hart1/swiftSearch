@@ -189,13 +189,14 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 mainList.sort();
                 mainList.reverse();
                 mainList.printToFile("ReverseSortedList.txt");
+                print::User("Finshed list is in ReverseSortedList.txt");
                 break;
             }
             case OP_TYPE::SORTED_LIST: {
                 numberList mainList = numberListHelper::combinedList(filesList);
                 mainList.sort();
                 mainList.printToFile("SortedList.txt");
-                std::cout << "Size is " << mainList.sendIntVector().size() << " " << mainList.sendDoubleVector().size() << std::endl;
+                print::User("Finished list is in Sorted.txt");
                 break;
             }
             case OP_TYPE::CHAR_FREQ: {
@@ -216,7 +217,6 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 }
                 joinThreads(threadVector);
                 std::vector<std::string> wordVec;
-                print::Debug("Root child count: " + std::to_string(wordTree.getChildCount()));
                 wordTree.saveSet("", wordVec);
                 print::Debug(std::to_string(wordVec.size()) + "Words saved");
                 print::User("All words are saved in Words.txt"); 
@@ -227,7 +227,7 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 while(!filesList.empty()){
                 threadVector.emplace_back(findAll, filesList.front(), LOOK_FOR_WORD);
                 filesList.pop();
-            }
+                }
             joinThreads(threadVector);
             break;
             }
@@ -243,7 +243,7 @@ void joinThreads(std::vector<std::thread>& threadVec){
             thread.join();
         }catch(const std::exception& e){
             print::Error(e);
+            print::Debug("joinThreads() has failed");
         }
     }
-    print::Debug("Threads have finished");
 }

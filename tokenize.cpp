@@ -2,7 +2,6 @@
 #include"constants.hpp"
 
 #include<filesystem>
-#include<sstream>
 #include<queue>
 
 
@@ -20,7 +19,7 @@ bool assignTokenOne(std::string tokenOne, Timer &watch){
         }
     }
 
-    switch(foundAt){ //set op type
+    switch(foundAt){ //set operation type
         case 0: operationTypeOfParse = OP_TYPE::INFO;
         break;
         case 1: operationTypeOfParse = OP_TYPE::SORTED_LIST;
