@@ -14,16 +14,16 @@
  * @details 
  * @param f this is the file that is pulled from the queue for this thread to work on
  * @param keyWord will return this count of this string to the shared memory, which is just a shared count
- * 
  */
 void findAll(file f, std::string keyWord){
-    print::Thread(str::enter, f.getFileName());
     using namespace std;
-    int rowOffile = 0;
+
+    print::Thread(str::enter, f.getFileName());
     simpleCount counter;
 
     char ch; //takes whats coming in character by character
     parseWindow Window(keyWord.size());
+    int rowOffile = 0;
     try{
     ifstream inputFile(f.filePathToStr());
     inputFile >> std::noskipws; //reads everything w spaces
@@ -105,7 +105,7 @@ void charFreq(file f, characterBucket &cBucket){
 
 /**
  * @fn makes input from a single thread and gives it to the main numberList
- * works with both vectors in numberList
+ * works with both vectors in numberList, both double and int
  */
 numberList singleList(file f){
     long long debugCount = 0;
