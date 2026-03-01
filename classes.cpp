@@ -26,6 +26,7 @@ char toLower(unsigned char value) {
 }
 
 
+
 //default constructor gets called on root
 atomicNode::atomicNode(){
     this->value = '*';

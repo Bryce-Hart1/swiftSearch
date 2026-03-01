@@ -61,7 +61,12 @@ bool assignTokenOne(std::string tokenOne, Timer &watch){
  * compares for - + the command so -debug as a whole string 
  */
 void justifyFlags(std::vector<std::string> flagsDetected){
-
+    
+    for(auto& flag : flagsDetected){
+        for(char& chr : flag){
+            chr = toLower(chr);
+        }
+    }
     print::Debug("justifyFlags() entered");
     std::array<std::string, 4> posFlag = {"-debug", "-caps", "-threadinfo", "-floatlist"}; 
     for(std::string flag : flagsDetected){
