@@ -11,6 +11,11 @@
 #include <filesystem>
 #include <deque>
 
+
+using highResClock = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+
+
 char toLower(unsigned char value);
 
 
@@ -64,8 +69,8 @@ class Timer{
         void printCurrentTime() const ;
         std::string readableTime();
     private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
-    std::chrono::time_point<std::chrono::high_resolution_clock> endTime;
+    highResClock startTime;
+    highResClock endTime;
     bool running = false;
 };
 
