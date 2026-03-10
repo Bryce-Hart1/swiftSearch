@@ -1,6 +1,7 @@
 #include "constants.hpp"
 #include "classes.hpp"
 #include "tokenize.hpp"
+#include "tsTrie.hpp"
 
 #include<vector>
 #include<thread>
@@ -8,7 +9,7 @@
 
 void findAll(file filename, std::string keyWord);
 
-void wordFreq(file fileName, atomicNode &wordTree);
+void wordFreq(file fileName, threadsafe::Trie& words);
 
 void charFreq(file fileName, characterBucket &cBucket);
 

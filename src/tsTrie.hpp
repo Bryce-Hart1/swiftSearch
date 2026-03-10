@@ -24,7 +24,7 @@ namespace threadsafe{
 class Trie{
     public:
     /**
-     * @version - 1.0
+     * @version - 1.1
      * @brief node class is wrapped inside Trie class and not accessable by user
      * 
      * 
@@ -118,16 +118,20 @@ struct node {
             n.count++;
         }
 
-        void getAllWords(std::vector<std::string>& put, std::string prefix, node* current){
-            if(current == nullptr) return;
+        void getAllWordsHelper(std::vector<std::string>& put, std::string prefix, node* current){
+            if(current == nullptr){
+                return;
+            }
     
             std::string currentWord = prefix + current->value; 
     
-            if(current->isEndpoint){
+            if(current->isEndpoint){ //push word into vector here
+                for(std::size_t i = 0; i < current->count; i++){
                 put.push_back(currentWord);
-                }
-            for(auto& child : current->childrenNodes){
-                getAllWords(put, currentWord, child.get()); 
+            }}
+
+            for(auto& child : current->childrenNodes){ //check the rest here
+                getAllWordsHelper(put, currentWord, child.get()); 
             }
         }
 
@@ -279,8 +283,8 @@ struct node {
         std::vector<string> r;
         r.reserve(this->getWordCount());
         for(auto& child : v_root->childrenNodes){
-            getAllWords(r, "", child.get());
-        }
+            getAllWordsHelper(r, "", child.get());
+            }
         return r;
     }
 
