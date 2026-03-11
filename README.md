@@ -35,11 +35,9 @@ sortedList - takes all numbers and sorts them into a printable file, smallest to
 
 listNumbers - takes all numbers and sorts them into a file.
 
-listWords - takes all the words and puts them in one file
-
 getcharacter - finds the frequency of all values.
 
-getcharacter - finds the frequency of all words in the list.
+getwords - finds the frequency of all words in the list.
 
 findAll finds either one or all references to the string provided by the user in the files.
 ```
@@ -52,7 +50,7 @@ findAll finds either one or all references to the string provided by the user in
 
 # Usage
 ## System Requirements
-- **Operating System**: UNIX-based systems (Linux, macOS, BSD)
+- **Operating System**: UNIX-based systems (Linux, macOS)
 - **Compiler**: C++20 compatible compiler (GCC 10+, Clang 10+)
 - **Standard Library**: Full C++20 standard library support
 
@@ -77,7 +75,7 @@ The goal was simple - create a fast lookup for any char value, and update its co
 [1]
 ```
 This way I could 0 out these counts and print the ones that were found more than 0 times, in a way that is already allocated and cheap on time and memory.
-### atomicNode
+### atomicNode - (replaced with threadsafe trie in V1.1)
 This class has gone through many revisions thus far, and has been the most challenging of the classes. The current design uses nodes that each have mutex locks wrapped over them, to lock nodes when they are being modified over. My main goal was to use a trie, which I hadnt really used in class and only had one run in with at ICPC. Each node has a few properties - a mutex lock, a char value, and a count. 
 ### NumberList
 For numberlist, I used async and std::futures to expect results from each thread, and add them to one main vector when finished. From there, the user can sort or reverse the list, depending on what command they enter. This class also went through many revisions, and most of the ideas got scrapped. For example, first, I was going to extend atomicNode to keep numbers - but I decided to scrap this as the idea was kind of redundant to what I had already made, and while sure it would be fast, I didnt think it would be as fast as std::vector. So, with this in mind, I did research on how to add vectors together and settled on using std::async and std::futures to return vectors to one big vector and print.
