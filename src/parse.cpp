@@ -3,17 +3,15 @@
 #include "classes.hpp"
 #include "tsTrie.hpp"
 
-#include<filesystem>
-#include<vector>
-#include<iostream>
-#include<string>
-#include<fstream>
-#include<exception>
-#include<thread>
-
+#include <filesystem>
+#include <vector>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <exception>
+#include <thread>
 
 using fsError = std::filesystem::filesystem_error;
-
 /**
  * @details 
  * @param f this is the file that is pulled from the queue for this thread to work on
@@ -73,7 +71,27 @@ void wordFeq(file f, threadsafe::Trie wordTree){
 
 
 void printToFile(std::vector<std::string> words){
-
+    std::ofstream outfile;
+    outfile.open("Words.txt");
+    if(!outfile.is_open()){
+        print::Error(std::runtime_error("Words.txt failed to open")); 
+    }
+    std::size_t current_wordsCount = 0;
+    std::string wordToPrint;
+    for(std::size_t i = 0; i < words.size(); i++){
+        if(i == 0){
+            wordToPrint = words.at(i);
+            current_wordsCount++;
+        }else{
+            if(words.at(i-1) == words.at(i)){ //another instance, just continue after incrementing
+                current_wordsCount++;
+            }else{ //print word and count at i-1 and overwrite
+                outfile << current_wordsCount << ": " << wordToPrint << std::endl;
+                current_wordsCount = 1;
+                wordToPrint = words.at(i);
+            }
+        }
+    }
 }
 
 /**
