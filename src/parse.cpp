@@ -92,6 +92,9 @@ void printToFile(std::vector<std::string> words){
             }
         }
     }
+    outfile.close();
+    print::User("All words are saved in Words.txt"); 
+
 }
 
 /**
@@ -236,9 +239,8 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 }
                 joinThreads(threadVector);//send all to work
                 std::vector<std::string> allWords = wordTree.getWords(); //then retrieve
-                print::Debug(std::to_string(allWords.size()) + "Words saved");
-                //printToFile(); //implement
-                print::User("All words are saved in Words.txt"); 
+                print::Debug(std::to_string(allWords.size()) + " Words saved from threads");
+                printToFile(allWords); //then add to file
                 break;
             }
             case OP_TYPE::FIND_ALL: {

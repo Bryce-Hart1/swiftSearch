@@ -124,7 +124,6 @@ inline void Info(){
     println(cout,"#sortedList - takes all numbers and sorts them into a printable file, smallest to largest");
     println(cout,"#-sortedList - takes all numbers and sorts them into a printable file, largest to smallest (reversed)");
     println(cout,"#listNumbers - takes all numbers and sorts them into a file in the order they appear");
-    println(cout,"#listWords - takes all the words in the file and displays them in the order they appear.");
     println(cout,"#getCharacter - finds the frequency of all values");
     println(cout,"getWords - finds the frequency of all words in the list");
     sleep(1);
