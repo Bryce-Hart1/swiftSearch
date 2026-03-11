@@ -9,7 +9,9 @@
 
 void findAll(file filename, std::string keyWord);
 
-void wordFreq(file fileName, threadsafe::Trie& words);
+void wordFreq(file f, threadsafe::Trie& wordTree);
+
+void printToFile(std::vector<std::string> words);
 
 void charFreq(file fileName, characterBucket &cBucket);
 

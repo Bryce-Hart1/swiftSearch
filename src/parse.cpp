@@ -51,7 +51,7 @@ void findAll(file f, std::string keyWord){
 
 
 
-void wordFeq(file f, threadsafe::Trie wordTree){
+void wordFreq(file f, threadsafe::Trie& wordTree){
     print::Thread(str::enter, f.getFileName());
     std::string word;
     try{
