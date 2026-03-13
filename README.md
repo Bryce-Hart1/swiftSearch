@@ -7,7 +7,7 @@
 |____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|
 ```
 
-This is my multithreaded-focused and OOP Project in C++.
+This is my multithreaded and OOP focused Project in C++.
 The main goal of this project is to show ADT design and multithreading to create runtime-effective searching. 
 
 To start, you will enter a command. This command will include the directory you are working on and the operation
@@ -95,14 +95,14 @@ In fileTreeStructure:
 </path/file>, </differentPath/file>, </otherPath/file>
 creates 3 threads!
 ```
-### parseWindow
+### parseWindow (Added in 1.0)
 parseWindow is used for findall and allowed me to add the ablitity to scan for multiple words. For example, if I had the phrase:
 ```
 Hello, world!
 ```
 The old way would just parse
 ```
-|Hello,|
+|Hello,| (stop at space)
 ```
 The new verison also scans spaces and as soon as it finds a direct match, it returns it to the user.
 ## Printing
