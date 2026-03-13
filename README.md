@@ -1,4 +1,4 @@
-# swiftSearch
+# swiftSearch - 1.0
 ```
  ____          _  __ _   ____                      _     
 / ___|_      _(_)/ _| |_/ ___|  ___  __ _ _ __ ___| |__  
@@ -7,7 +7,7 @@
 |____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|
 ```
 
-This is my multithreaded-focused and OOP Project in C++.
+This is my multithreaded and OOP focused project in C++.
 The main goal of this project is to show ADT design and multithreading to create runtime-effective searching. 
 
 To start, you will enter a command. This command will include the directory you are working on and the operation
