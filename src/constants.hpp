@@ -7,17 +7,21 @@
 
  * Welcome to swiftSearch.
  * @author Bryce Hart
- * @date February 1st, 2026
+ * @date February 1st, 2026, updated (V1.1 on 3/12/26)
  * @brief This program allows for fast search of multiple files using multiple threads.
  */
 #pragma once
 
 
-#include<iostream>
-#include<thread>
-#include<syncstream>
-#include<sstream>
+#include <iostream>
+#include <thread>
+#include <syncstream>
+#include <sstream>
 #include <unistd.h>
+
+#include "tsTrie.hpp" //my own trie implementation
+
+using size_t = std::size_t;
 
 
 
