@@ -15,7 +15,6 @@
 using highResClock = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 
-
 char toLower(unsigned char value);
 
 

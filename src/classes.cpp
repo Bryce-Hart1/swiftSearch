@@ -28,7 +28,7 @@ char toLower(unsigned char value) {
 
 struct wordStore{ //might use
     std::string word;
-    std::size_t count;
+    size_t count;
 };
 
 

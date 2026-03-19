@@ -12,6 +12,7 @@
 #include <thread>
 
 using fsError = std::filesystem::filesystem_error;
+
 /**
  * @details 
  * @param f this is the file that is pulled from the queue for this thread to work on
@@ -28,7 +29,7 @@ void findAll(file f, std::string keyWord){
     int rowOffile = 0;
     try{
     ifstream inputFile(f.filePathToStr());
-    inputFile >> std::noskipws; //reads everything w spaces
+    inputFile >> noskipws; //reads everything w spaces
         if(inputFile.is_open()){
             while(inputFile >> ch){
                 Window.move(ch);
@@ -69,16 +70,19 @@ void wordFreq(file f, threadsafe::Trie& wordTree){
     print::Thread(str::exit, f.getFileName());
 }
 
-
+/**
+ * @brief works with word freq/trie to print to file 
+ */
 void printToFile(std::vector<std::string> words){
-    std::ofstream outfile;
+    using namespace std;
+    ofstream outfile;
     outfile.open("Words.txt");
     if(!outfile.is_open()){
-        print::Error(std::runtime_error("Words.txt failed to open")); 
+        print::Error(runtime_error("Words.txt failed to open")); 
     }
-    std::size_t current_wordsCount = 0;
-    std::string wordToPrint;
-    for(std::size_t i = 0; i < words.size(); i++){
+    size_t current_wordsCount = 0;
+    string wordToPrint;
+    for(size_t i = 0; i < words.size(); i++){
         if(i == 0){
             wordToPrint = words.at(i);
             current_wordsCount++;
@@ -86,7 +90,7 @@ void printToFile(std::vector<std::string> words){
             if(words.at(i-1) == words.at(i)){ //another instance, just continue after incrementing
                 current_wordsCount++;
             }else{ //print word and count at i-1 and overwrite
-                outfile << current_wordsCount << ": " << wordToPrint << std::endl;
+                outfile << current_wordsCount << ": " << wordToPrint << endl;
                 current_wordsCount = 1;
                 wordToPrint = words.at(i);
             }
@@ -230,7 +234,7 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 break;
             }
             case OP_TYPE::WORD_FREQ: {
-                const std::size_t CUTOFF = 5;
+                const size_t CUTOFF = 5;
                 threadsafe::Trie wordTree(CUTOFF);
 
                 while(!filesList.empty()){
