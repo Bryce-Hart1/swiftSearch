@@ -16,8 +16,9 @@
 #include <fstream>
 #include <future>
 #include <algorithm>
-#include <fstream>
 #include <deque>
+#include <iomanip>
+#include <print>
 
 char toLower(unsigned char value) {
     if(value >= 'A' && value <= 'Z') {
@@ -25,12 +26,6 @@ char toLower(unsigned char value) {
     }
     return value;
 }
-
-struct wordStore{ //might use
-    std::string word;
-    size_t count;
-};
-
 
 /**
  * @class partners with characterBucket
@@ -42,14 +37,16 @@ void atomCharPair::increment(){
     this->count.fetch_add(1);
 }
 
-int atomCharPair::getCount(){
-    return (this->count);
+std::size_t atomCharPair::getCount() const{
+    return (this->count.load(std::memory_order_relaxed));
 }
-char atomCharPair::getValue(){
+char atomCharPair::getValue() const{
     return (this->value);
 }
-void atomCharPair::setIntialValue(){
-    this->count = 0;
+//value used to be left uninitialised here, so getValue() returned garbage
+void atomCharPair::setIntialValue(char c){
+    this->value = c;
+    this->count.store(0, std::memory_order_relaxed);
 }
 
 
@@ -67,16 +64,22 @@ void atomCharPair::setIntialValue(){
 characterBucket::characterBucket(){
     this->ignoreCaps = NO_CAPITALS_FLAG;
     for(size_t i = 0; i < this->buckets.size(); i++){
-        buckets.at(i).setIntialValue();
+        buckets.at(i).setIntialValue(static_cast<char>(i));
     }
 }
 
 
+/**
+ * char is signed on this platform, so any byte >= 0x80 (every UTF-8 continuation
+ * byte, every accented letter, smart quote, em dash) used to convert to a huge
+ * size_type and make .at() throw. charFreq caught that and abandoned the rest of
+ * the file, so non-ASCII input silently produced wrong counts.
+ */
 void characterBucket::addTo(char value){
-    this->buckets.at(value).increment(); //takes bucket at value (a char) and increments by 1
+    this->buckets[static_cast<unsigned char>(value)].increment();
 }
 
-void characterBucket::printAll(){
+void characterBucket::printAll() const{
     using namespace std;
     for(size_t i = 0; i < this->buckets.size(); i++){
         if(getCounterAt(i) > 0){
@@ -98,11 +101,11 @@ void characterBucket::printAll(){
     }
 }
 
-char characterBucket::getValueAt(int value){
+char characterBucket::getValueAt(std::size_t value) const{
     return (this->buckets.at(value).getValue());
 }
 
-size_t characterBucket::getCounterAt(int value){
+std::size_t characterBucket::getCounterAt(std::size_t value) const{
     return (this->buckets.at(value).getCount());
 }
 
@@ -114,8 +117,8 @@ size_t characterBucket::getCounterAt(int value){
  */
 
 
-unsigned long long int simpleCount::getCount(){
-    return (this->count);
+unsigned long long int simpleCount::getCount() const{
+    return (this->count.load(std::memory_order_relaxed));
 }
 
 void simpleCount::incrementBy(int amount){
@@ -143,15 +146,11 @@ void numberList::add(long double data){
 
 
 
-void numberList::addVec(numberList vector){
+void numberList::addVec(const numberList& other){
     if(this->isIntTypeList()){
-        for(auto& a : vector.iList){ //pull from that vectors int list
-            this->iList.push_back(a);
-        }
+        this->iList.insert(this->iList.end(), other.iList.begin(), other.iList.end());
     }else{
-        for(auto& a : vector.dList){
-            this->dList.push_back(a);
-        }
+        this->dList.insert(this->dList.end(), other.dList.begin(), other.dList.end());
     }
 }
 
@@ -233,7 +232,9 @@ numberList numberListHelper::combinedList(std::queue<file> files){
     std::vector<std::future<numberList>> futureList;
 
     while(!files.empty()){
-        futureList.push_back(std::async(singleList, files.front())); //create a task for each vector position
+        //without std::launch::async the implementation may run these deferred,
+        //on the calling thread, meaning this path was not necessarily parallel at all
+        futureList.push_back(std::async(std::launch::async, singleList, files.front()));
         files.pop();
     }
     for(size_t i = 0; i < futureList.size(); i++){
@@ -270,7 +271,7 @@ void Timer::reset() {
 }
     
 void Timer::printCurrentTime() const {
-    return;
+    std::println(std::cout, "{} ms", this->timeInMilliseconds());
 }
   
 //returns a string type in a Digits - measurement format. no spacing. up to minutes
@@ -325,14 +326,27 @@ unsigned long long int file::getFileSize(){
 
 //returns a readable size for the user
 std::string file::returnReadableSize(){
-    unsigned long long int fileSize = (this->getFileSize());
-    if( fileSize < 1000 ){
-        return (std::to_string(fileSize) + " bytes"); 
-    }else if(fileSize < 1000000){ //up to giga
-        return (std::to_string(fileSize) + " kilobytes");
-    }else{ 
-        return (std::to_string(fileSize) + " gigabytes");  
+    //this used to label the tiers without ever dividing, so a 5000 byte file
+    //reported "5000 kilobytes" and a 5 MB file reported "5000000 gigabytes".
+    //megabytes were skipped entirely.
+    const unsigned long long int fileSize = (this->getFileSize());
+    const char* unitNames[] = {"bytes", "kilobytes", "megabytes", "gigabytes", "terabytes"};
+
+    if(fileSize < 1000){
+        return (std::to_string(fileSize) + " bytes");
     }
+
+    long double scaled = static_cast<long double>(fileSize);
+    std::size_t unit = 0;
+    while(scaled >= 1000.0L && unit + 1 < (sizeof(unitNames) / sizeof(unitNames[0]))){
+        scaled /= 1000.0L;
+        unit++;
+    }
+
+    //one decimal place, no trailing ".000000" from std::to_string
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(1) << scaled << ' ' << unitNames[unit];
+    return out.str();
 }
 
 //returns enum of file type from file_type enum
@@ -370,7 +384,25 @@ void file::setPath(std::filesystem::path path){
 //creates whole tree from the root file given
 fileTreeStructure::fileTreeStructure(file root){
     namespace fs = std::filesystem;
-    try{ //first create structure from the filesystem iterator
+    try{
+        //a single file is a legitimate target. recursive_directory_iterator throws
+        //on anything that is not a directory, which used to leave storedFiles empty
+        //and make every operation quietly scan nothing.
+        if(fs::is_regular_file(root.getfsPath())){
+            file only;
+            only.setFileName(root.getfsPath().filename().generic_string());
+            only.setPath(root.getfsPath());
+            only.setEnumType(fs::file_type::regular);
+            only.setFileSize(fs::file_size(root.getfsPath()));
+            storedFiles.push_back(only);
+            return;
+        }
+
+        if(!fs::exists(root.getfsPath())){
+            print::Error(std::runtime_error("Path does not exist: " + root.getfsPath().string()));
+            return;
+        }
+
         for(const auto &entry : std::filesystem::recursive_directory_iterator(root.getfsPath())){
             file x;
             x.setFileName(entry.path().filename().generic_string());

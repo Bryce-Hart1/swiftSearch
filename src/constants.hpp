@@ -17,11 +17,12 @@
 #include <thread>
 #include <syncstream>
 #include <sstream>
+#include <print>
+#include <string>
+#include <mutex>
 #include <unistd.h>
 
 #include "tsTrie.hpp" //my own trie implementation
-
-using size_t = std::size_t;
 
 
 
@@ -32,6 +33,7 @@ inline bool FLOAT_NUMBER_LIST_FLAG = false;
 
 
 enum class OP_TYPE{
+    UNSET,   //so a malformed command cannot dispatch on an indeterminate value
     INFO,
     SORTED_LIST,
     R_SORTED_LIST,
@@ -41,35 +43,27 @@ enum class OP_TYPE{
     FIND_ALL,
 };
 
-inline OP_TYPE operationTypeOfParse; //global indicator for operatation to be done on files
+inline OP_TYPE operationTypeOfParse = OP_TYPE::UNSET; //global indicator for operatation to be done on files
 inline std::mutex printMutex; //the global mutex for all print functions to insure synced printing
 
 inline std::string LOOK_FOR_WORD;
 
 //converts string passed to lowercase
 inline std::string toLowerCase(std::string str){
-    std::string returnStr;
-    for(size_t i = 0; i < str.length(); i++){
-        if(str[i] >= 'A' && str[i] <= 'Z'){
-            returnStr += (str[i] + 32);
-        }else{
-            returnStr += str[i];
+    for(char& c : str){
+        if(c >= 'A' && c <= 'Z'){
+            c = static_cast<char>(c + 32);
         }
     }
-    return returnStr;
+    return str;
 }
 
 //checks if string provided has a number inside
 inline bool isNumber(const std::string& word){
-    if(word.empty()){
-        return false;
-    }
-    if(word.at(0) >= '0' && word.at(0) <= '9'){
-        return true;
-    }
-    for(size_t i = 0; i < word.length(); i++){ //might remove/optimize later
-        if(word.at(i) >= '0' && word.at(i) <= '9'){
-        return true; }    
+    for(char c : word){
+        if(c >= '0' && c <= '9'){
+            return true;
+        }
     }
     return false;
 }
@@ -79,7 +73,7 @@ inline bool isNumber(const std::string& word){
 
 namespace print{
 
-inline void Debug(std::string message){
+inline void Debug(const std::string& message){
     if(DEBUG_ACTIVE_FLAG){
         std::lock_guard<std::mutex> lock(printMutex);
         std::string debugStatement = "[DEBUG] || ";
@@ -92,7 +86,7 @@ inline void Error(const std::exception& e){
     std::cerr << "[EXCEPTION] :: " <<  e.what() << std::endl;
 }
 
-inline void Thread(std::string message, std::string threadsFile){
+inline void Thread(const std::string& message, const std::string& threadsFile){
     if(SHOW_THREADTIME_FLAG){
     std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
     std::string threadStatement = ("[THREAD] [" + threadsFile + "]~~ ");
@@ -100,10 +94,17 @@ inline void Thread(std::string message, std::string threadsFile){
     }
 }
 
-inline void Found(std::string keyWord, std::string fileName,int instance, int line){
-    std::println(std::cout, "! -> instance |{}| of |keyWord| found at line |{}| : |{}|", instance, keyWord, line, fileName);
+inline void Found(const std::string& keyWord, const std::string& fileName,
+                  unsigned long long instance, unsigned long long line){
+    //this format string used to have three {} for four arguments, with "|keyWord|"
+    //as literal text. keyWord printed in the line slot, line printed in the file
+    //slot, and fileName never printed at all.
+    std::lock_guard<std::mutex> lock(printMutex);
+    std::println(std::cout, "! -> instance |{}| of |{}| found at line |{}| : |{}|",
+                 instance, keyWord, line, fileName);
 }
-inline void User(std::string msg){
+inline void User(const std::string& msg){
+    std::lock_guard<std::mutex> lock(printMutex);
     std::println(std::cout, "[USER] {}", msg);
 }
 

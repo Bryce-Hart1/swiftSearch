@@ -3,11 +3,14 @@
 
 #include<filesystem>
 #include<queue>
+#include<optional>
+#include<stdexcept>
+#include<string_view>
 
 
 //Will throw true if there is an error assigning token. If this occurs, program will exit from tokenize
 bool assignTokenOne(std::string tokenOne, Timer &watch){
-    std::array<std::string, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
+    static constexpr std::array<std::string_view, 7> Tokens = {"#info", "#sortedlist", "#-sortedlist", 
     "#listnumbers", "#getcharacters", "#getwords", "#findall"};
 
     tokenOne = toLowerCase(tokenOne);
@@ -15,7 +18,8 @@ bool assignTokenOne(std::string tokenOne, Timer &watch){
 
     for(size_t i = 0; i < Tokens.size(); i++){
         if(Tokens.at(i) == tokenOne){
-            foundAt = i;
+            foundAt = static_cast<int>(i);
+            break; //no point scanning the rest once it matches
         }
     }
 
@@ -35,7 +39,8 @@ bool assignTokenOne(std::string tokenOne, Timer &watch){
         case 6: operationTypeOfParse = OP_TYPE::FIND_ALL;
         break;
         default : {
-        print::Debug(("Token One is invalid and value is " + tokenOne));
+        operationTypeOfParse = OP_TYPE::UNSET;
+        print::User("'" + tokenOne + "' is not a valid operation. Enter ? for the list.");
         return true;    }
         }
 
@@ -44,6 +49,13 @@ bool assignTokenOne(std::string tokenOne, Timer &watch){
         watch.stop();
         print::User("Please enter the word you are looking for:");
         std::getline(std::cin, LOOK_FOR_WORD);
+        while(LOOK_FOR_WORD.empty()){ //an empty needle is undefined behaviour downstream
+            print::User("The search term cannot be empty. Please enter a word:");
+            if(!std::getline(std::cin, LOOK_FOR_WORD)){
+                print::Error(std::runtime_error("No search term given"));
+                return true;
+            }
+        }
         if(NO_CAPITALS_FLAG){
             LOOK_FOR_WORD = toLowerCase(LOOK_FOR_WORD); //set to lowercase since docs will be lowercase
         }
@@ -98,10 +110,10 @@ void justifyFlags(std::vector<std::string> flagsDetected){
  * returns fileTreeStructure to main. sets flags and breaks down type of opertation to do
  * @param input string of tokens from user, unprocessed
  * @param root reference of root to use to create a fileTreeStructure
- * @returns a filetree structure if valid, and if not returns a nullptr
+ * @returns a filetree structure if valid, and std::nullopt if not
  */
 
-fileTreeStructure* tokenize(std::string input, Timer& watch){
+std::optional<fileTreeStructure> tokenize(const std::string& input, Timer& watch){
     std::vector<std::string> tokens;
 
 
@@ -110,12 +122,19 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
     std::string temp;
     while(stream >> temp){
         tokens.push_back(temp); //pushes all tokens into a vector
-        std::string message = "tokens pushed back: values are: ";
-        for(std::string t : tokens){
-            message += t + " |";
-        }
-        print::Debug(message); 
     }
+
+    if(tokens.size() < 2){ //assignTokenOne/at(1) below would throw
+        print::User("A command needs an operation and a path, e.g. #findall ./docs");
+        return std::nullopt;
+    }
+
+    //this used to be rebuilt from every token INSIDE the loop above: O(n^2), printed n times
+    std::string message = "tokens pushed back: values are: ";
+    for(const std::string& t : tokens){
+        message += t + " |";
+    }
+    print::Debug(message);
 
     //sets some global booleans for tokens
     std::vector<std::string> flags;
@@ -124,22 +143,20 @@ fileTreeStructure* tokenize(std::string input, Timer& watch){
     }
     justifyFlags(flags); //sets global values in here
 
-    if(assignTokenOne(tokens.at(0), std::ref(watch))){ //token one works here, exits if there is an error assigning
-        print::Debug("Error assigning token one, exiting");
-        std::exit(EXIT_FAILURE);
+    if(assignTokenOne(tokens.at(0), std::ref(watch))){ //token one works here
+        print::Debug("Error assigning token one");
+        return std::nullopt; //let main decide the exit code instead of std::exit
     }
 
     file root(tokens.at(1)); //root fileName should be found here
 
-    try{ //trys to create a fileStructure based off of root. If it fails, it will return a null pointer
-       fileTreeStructure* structure = new fileTreeStructure(root);
-        return structure;
-
+    try{
+        return fileTreeStructure(root); //by value: this used to leak a new'd pointer
     }catch(const std::exception& e){
         print::Error(e);
         print::Debug("Object fileTreeStructure failed to create.");
     }
-    return nullptr;
+    return std::nullopt;
 
 }
 

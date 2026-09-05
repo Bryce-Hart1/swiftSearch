@@ -3,6 +3,9 @@
 #include"classes.hpp" //check this cpp for all class implementations 
 #include"constants.hpp" //check this for print:: namespace, boolean flags and other global functions
 
+#include <optional>
+#include <cstdlib>
+
 
 //just checks length, not validity. If not valid, return after telling the user it is wrong
 bool goodArg(const std::string &argumentArr){
@@ -30,28 +33,44 @@ std::string boot(){
     std::string arguments;
     print::Logo();
     print::User("Enter a command:");
-    std::getline(std::cin, arguments);
-    
-    while(!goodArg(arguments)){
-        print::User("Message passed in is not of valid length. Please enter cmd now or return ? for help.");
-        std::getline(std::cin, arguments);
-        
+
+    while(true){
+        if(!std::getline(std::cin, arguments)){
+            return {}; //EOF: let main handle it rather than looping forever
+        }
+
+        //'?' used to only be checked inside the retry branch, so it was ignored
+        //unless the input was also too short to be a valid command
         if(!arguments.empty() && arguments.at(0) == '?'){
             print::Info();
             print::User("Enter a command:");
-            std::getline(std::cin, arguments);
+            continue;
         }
+
+        if(goodArg(arguments)){
+            return arguments;
+        }
+
+        print::User("Message passed in is not of valid length. Please enter cmd now or return ? for help.");
     }
-    return arguments;
 }
 
 int main(){
     std::string argumentArr = boot();
     Timer mainWatch;
     mainWatch.start(); //start timer for how long program takes
-    fileTreeStructure fileStruct = *tokenize(argumentArr, std::ref(mainWatch)); //all tokens get assigned here 
-    assignOperation(operationTypeOfParse, fileStruct.createFileQueue()); //all work gets done here
+
+    //this used to be `*tokenize(...)`: a dereference of a raw pointer that could be
+    //null, and a copy that leaked the new'd object behind it
+    std::optional<fileTreeStructure> fileStruct = tokenize(argumentArr, std::ref(mainWatch));
+    if(!fileStruct.has_value()){
+        print::Debug("Could not build a file list, exiting");
+        return EXIT_FAILURE; //main used to return 0 on every path
+    }
+
+    assignOperation(operationTypeOfParse, fileStruct->createFileQueue()); //all work gets done here
     mainWatch.stop(); //stop and print
     print::User("Program has completed in " + mainWatch.readableTime());
     print::Debug("Program sucessfully exited");
+    return EXIT_SUCCESS;
 }

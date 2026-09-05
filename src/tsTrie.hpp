@@ -1,25 +1,27 @@
+#pragma once
+
 #include <memory>
 #include <string>
 #include <mutex>
 #include <vector>
 #include <shared_mutex>
 #include <thread>
-#include <syncstream>
 #include <variant>
-#include <cassert>
-#include <type_traits>
-#include <iomanip>
 #include <exception>
+#include <stdexcept>
 #include <iostream>
 #include <optional>
+#include <algorithm>
+#include <atomic>
+#include <cstddef>
 
-#pragma once
+namespace threadsafe{
 
+//these used to sit at global namespace scope, which made this header unsafe
+//for any other project to include
 using sizeT = std::size_t;
 using string = std::string;
 using optFlag = std::optional<bool>;
-
-namespace threadsafe{
 
 class Trie{
     public:
@@ -28,13 +30,25 @@ class Trie{
      * @brief node class is wrapped inside Trie class and not accessable by user
      * 
      * 
-     * uses a hybrid design of spinlocks on deep nodes to save memory, and mutexes on high contention 
-     * points in the tree. I have a factory in node to help determine this, with an option to set this within the
-     * trie constructor and at what depth. I will pick a safe, default depth.
-     * There is alot to this class so I will attempt to explain it the best I can:
-     * @struct mutexLock a mutex wrapper, used for higher nodes 
-     * @struct spinLock is a spinLock as the name suggest 
-     * @struct node acts as its own unit, creates its own lock based on level
+     * LOCKING, as it actually stands:
+     * a single tree-level std::shared_mutex (v_treeLock). add/remove/clear take it
+     * exclusively; find/getWords take it shared. node::count is atomic.
+     *
+     * This is coarse. It serialises writers against each other, which is fine for
+     * the current one-thread-per-file callers but is the obvious thing to improve.
+     *
+     * NOT YET IMPLEMENTED - the intended design, kept here as the target:
+     * a hybrid of spinlocks on deep nodes (cheap, low contention) and mutexes on
+     * shallow nodes (expensive, high contention), chosen by depth against
+     * v_mutexCutoff. The mutexLock/spinLock/node::lockGuard machinery below is the
+     * start of that, and v_mutexCutoff is stored ready for it, but nothing selects
+     * between the two yet: every node default-constructs to mutexLock, and the old
+     * per-node locking it supported was not actually hand-over-hand (add() released
+     * each node's lock before descending, so the traversal was never safe).
+     *
+     * @struct mutexLock a shared_mutex wrapper, intended for shallow nodes
+     * @struct spinLock  an atomic_flag spinner, intended for deep nodes
+     * @struct node      one character, its children, and its (currently unused) lock
      * @details has methods for adding words, removing words, removing all instances of word, clear entire tree, 
      * and create vector of all words (returned as a string)
      */   
@@ -72,7 +86,7 @@ struct node {
     char value;
     bool isEndpoint;
     bool isRoot;
-    sizeT count;
+    std::atomic<sizeT> count;
     std::vector<std::unique_ptr<node>> childrenNodes;
     std::variant<mutexLock, spinLock> nodeLock;
     node(char val) : value(val), isEndpoint(false), isRoot(false), count(0) {};
@@ -104,21 +118,25 @@ struct node {
 
     private:
         std::unique_ptr<node> v_root; 
-        std::atomic<sizeT> v_nodeCount;
-        std::atomic<sizeT> wordCount;
-        sizeT v_mutexCutoff; 
+        //these were default-constructed atomics, so they held indeterminate values.
+        //getWords() called reserve() on wordCount.
+        std::atomic<sizeT> v_nodeCount{0};
+        std::atomic<sizeT> wordCount{0};
+        sizeT v_mutexCutoff{3};
+        mutable std::shared_mutex v_treeLock; //guards structure during reads
 
-        void setEndpointTrue(node& n){
-            node::lockGuard guard(n.nodeLock);
-            n.isEndpoint = true;
+        //add() used to call these as two SEPARATE lock acquisitions on the terminal
+        //node, on top of the one it already took while walking. count is atomic now,
+        //so the endpoint flag is all that needs the lock.
+        void markEndpoint(node& n){
+            {
+                node::lockGuard guard(n.nodeLock);
+                n.isEndpoint = true;
+            }
+            n.count.fetch_add(1, std::memory_order_relaxed);
         }
 
-        void increment(node& n){
-            node::lockGuard guard(n.nodeLock);
-            n.count++;
-        }
-
-        void getAllWordsHelper(std::vector<std::string>& put, std::string prefix, node* current){
+        void getAllWordsHelper(std::vector<std::string>& put, const std::string& prefix, const node* current) const {
             if(current == nullptr){
                 return;
             }
@@ -126,7 +144,8 @@ struct node {
             std::string currentWord = prefix + current->value; 
     
             if(current->isEndpoint){ //push word into vector here
-                for(std::size_t i = 0; i < current->count; i++){
+                const sizeT n = current->count.load(std::memory_order_relaxed);
+                for(std::size_t i = 0; i < n; i++){
                 put.push_back(currentWord);
             }}
 
@@ -140,9 +159,8 @@ struct node {
             if(depth == word.size()){ //base case
                 if(!current->isEndpoint) return false; // word doesn't exist
         
-                node::lockGuard guard(current->nodeLock);
                 current->isEndpoint = false;
-                current->count = 0;
+                current->count.store(0, std::memory_order_relaxed);
         
                 // tell parent to delete us only if we have no children(no other words run through this node)
                 return current->childrenNodes.empty();
@@ -157,7 +175,7 @@ struct node {
             bool shouldDeleteChild = removeHelper(next, word, depth + 1);
 
             if(shouldDeleteChild){
-                node::lockGuard guard(current->nodeLock);
+                // caller already holds v_treeLock exclusively
                 // erase the unique_ptr from the vector, which triggers child's destructor
                 // which cascades down through all of that child's unique_ptr children
                 auto itr = std::find_if(current->childrenNodes.begin(), 
@@ -176,58 +194,61 @@ struct node {
 
 
     public: //user methods
+        static constexpr sizeT MIN_CUTOFF = 3;
+
         Trie() {
             v_root = std::make_unique<node>('*');
             v_root->isEndpoint = false;
-            v_mutexCutoff = 3; // safe default
+            v_root->isRoot = true; //was never set anywhere
+            v_mutexCutoff = MIN_CUTOFF; // reserved for the hybrid lock design above
         }
 
-        Trie(string initial) : Trie() {
+        explicit Trie(const string& initial) : Trie() {
             add(initial);
         }
 
-        Trie(sizeT HIGH_CONTENTION_CUTOFF) : Trie() {
-            try {
-                if (HIGH_CONTENTION_CUTOFF < 3){
-                    throw std::invalid_argument("HIGH_CONTENTION_CUTOFF cannot be below 2");
-                }
-                this->v_mutexCutoff = HIGH_CONTENTION_CUTOFF;
-            } catch (const std::exception& error) {
-                std::cerr << error.what() << '\n';
-                std::cout << "Trie creation failed" << '\n';
-            }
+        //this used to throw and immediately catch its own exception, leaving an
+        //object in a "failed" state the caller had no way to detect. the guard also
+        //tested < 3 while the message said "below 2". clamp instead.
+        explicit Trie(sizeT HIGH_CONTENTION_CUTOFF) : Trie() {
+            this->v_mutexCutoff = (HIGH_CONTENTION_CUTOFF < MIN_CUTOFF) ? MIN_CUTOFF
+                                                                        : HIGH_CONTENTION_CUTOFF;
         }
 
-        Trie(string initial, sizeT HIGH_CONTENTION_CUTOFF) : Trie(HIGH_CONTENTION_CUTOFF) {
+        Trie(const string& initial, sizeT HIGH_CONTENTION_CUTOFF) : Trie(HIGH_CONTENTION_CUTOFF) {
                 add(initial);
         }
 
         //deletes all of roots children
         void clear(){
-            node::lockGuard guard(v_root->nodeLock);
-            v_root.get()->childrenNodes.clear(); //clear the vec and the children go out of scope
+            std::unique_lock<std::shared_mutex> writeGuard(v_treeLock);
+            v_root->childrenNodes.clear(); //clear the vec and the children go out of scope
             wordCount.store(0);
             v_nodeCount.store(0);
         }
 
-        bool getIsEndPoint(node* thisNode) const{
-            if(thisNode->isEndpoint){
-                return true;
-            }
-            return false;
+        bool getIsEndPoint(const node* thisNode) const{
+            return thisNode != nullptr && thisNode->isEndpoint;
         }
 
     
-        sizeT getWordCount(){
-            return this->wordCount;
+        sizeT getWordCount() const{
+            return this->wordCount.load(std::memory_order_relaxed);
+        }
+
+        sizeT getNodeCount() const{
+            return this->v_nodeCount.load(std::memory_order_relaxed);
         }
 
 
-        bool find(string word) {
-            node::lockGuard guard(v_root->nodeLock);
-            node* current = v_root.get();
+        //find/getWords used to traverse with no locking at all (find locked only the
+        //root), which is a data race against a concurrent add(). they take a shared
+        //lock on the tree now; add() takes it exclusively.
+        bool find(const string& word) const {
+            std::shared_lock<std::shared_mutex> readGuard(v_treeLock);
+            const node* current = v_root.get();
             for (char c : word) {
-                node* next = findChildNode(*current, c);
+                const node* next = findChildNode(*current, c);
                 if (next == nullptr)
                     return false;
                 current = next;
@@ -236,50 +257,59 @@ struct node {
         }
 
     //returns a node at requested position, if not returns nullptr
-        node* findChildNode(node& n, const char lookingFor){
-        
-            for(int i = 0; i < n.childrenNodes.size(); i++){
-                if(lookingFor == n.childrenNodes.at(i)->value){
-                    return n.childrenNodes.at(i).get();
+        static node* findChildNode(node& n, const char lookingFor){
+            for(sizeT i = 0; i < n.childrenNodes.size(); i++){ //was int vs size_type
+                if(lookingFor == n.childrenNodes[i]->value){
+                    return n.childrenNodes[i].get();
                 }
             }
             return nullptr;
         }
 
-        sizeT getChildCount(node n) const{
+        static const node* findChildNode(const node& n, const char lookingFor){
+            for(sizeT i = 0; i < n.childrenNodes.size(); i++){
+                if(lookingFor == n.childrenNodes[i]->value){
+                    return n.childrenNodes[i].get();
+                }
+            }
+            return nullptr;
+        }
+
+        //took `node` BY VALUE, which cannot compile: node holds unique_ptrs and a
+        //shared_mutex, both non-copyable
+        sizeT getChildCount(const node& n) const{
             return n.childrenNodes.size();
         }
 
 
             //adds entire word to the trie. 
-        void add(std::string word){
+        void add(const string& word){
+            if(word.empty()){ //nothing to insert, and it would mark the root an endpoint
+                return;
+            }
+
+            std::unique_lock<std::shared_mutex> writeGuard(v_treeLock);
             node* current = v_root.get();
             
             for(sizeT i = 0; i < word.length(); i++){
                 char ch = word[i];
-                node::lockGuard guard(current->nodeLock);  // locks here
         
-                node* thisChild = nullptr;
-            for(auto& c : current->childrenNodes){
-                if(c->value == ch){
-                    thisChild = c.get();
-                    break;
+                node* thisChild = findChildNode(*current, ch);
+                if(thisChild == nullptr){
+                    current->childrenNodes.emplace_back(std::make_unique<node>(ch));
+                    thisChild = current->childrenNodes.back().get();
+                    v_nodeCount.fetch_add(1, std::memory_order_relaxed);
                 }
-            }
-            if(thisChild == nullptr){
-                current->childrenNodes.emplace_back(std::make_unique<node>(ch));
-                thisChild = current->childrenNodes.back().get();
-        }
         
-        current = thisChild;
-    }  // guard goes out of scope here it will unlock
+                current = thisChild;
+            }
     
-    setEndpointTrue(*current);
-    increment(*current);
-    wordCount++;
+            markEndpoint(*current);
+            wordCount.fetch_add(1, std::memory_order_relaxed);
     }
 
-    std::vector<string> getWords(){
+    std::vector<string> getWords() const {
+        std::shared_lock<std::shared_mutex> readGuard(v_treeLock);
         std::vector<string> r;
         r.reserve(this->getWordCount());
         for(auto& child : v_root->childrenNodes){
@@ -289,47 +319,47 @@ struct node {
     }
 
     //return false if the remove fails
-    optFlag remove(string toRemove) {
-        if(!find(toRemove)){
-            return false;}
-
-        removeHelper(v_root.get(), toRemove, 0);
-        wordCount.fetch_sub(1);
-        return true;
+    optFlag remove(const string& toRemove) {
+        return remove(toRemove, false);
     }
 
-    optFlag remove(string toRemove, bool removeAll) {
-        if(!find(toRemove)){
-            return false;}
-        //start traversal
+    optFlag remove(const string& toRemove, bool removeAll) {
+        if(toRemove.empty()){
+            return false;
+        }
+
+        std::unique_lock<std::shared_mutex> writeGuard(v_treeLock);
+
+        //walk to the terminal node ourselves rather than calling find(), which
+        //would try to take the same lock and deadlock
         node* current = v_root.get();
-            for (char c : toRemove) {
-                current = findChildNode(*current, c);
+        for (char c : toRemove) {
+            current = findChildNode(*current, c);
             if(current == nullptr){ //return early if we ever hit nullptr
                 return false;
             }
-            }
+        }
 
-            if(!current->isEndpoint){ //if its not a endpoint, dont do anything
-                return false;
-            }
+        if(!current->isEndpoint){ //if its not a endpoint, dont do anything
+            return false;
+        }
 
-            if(removeAll){
-                //remove all insertions of this word
-                sizeT countToRemove = current->count;
+        if(removeAll){
+            //remove all insertions of this word
+            sizeT countToRemove = current->count.load(std::memory_order_relaxed);
+            removeHelper(v_root.get(), toRemove, 0);
+            wordCount.fetch_sub(countToRemove, std::memory_order_relaxed);
+        }else{
+            //remove only one occurrence
+            const sizeT left = current->count.fetch_sub(1, std::memory_order_relaxed) - 1;
+            if (left == 0) {
+                //no more occurrences, trim node
                 removeHelper(v_root.get(), toRemove, 0);
-                wordCount.fetch_sub(countToRemove);
-            }else{
-                //remove only one occurrence
-                current->count--;
-                if (current->count == 0) {
-                    //no more occurrences, trim node
-                    removeHelper(v_root.get(), toRemove, 0);
-                }
-                wordCount.fetch_sub(1);
             }
+            wordCount.fetch_sub(1, std::memory_order_relaxed);
+        }
 
-            return true;
+        return true;
         }
 
 

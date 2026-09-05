@@ -5,10 +5,11 @@
 Before using swiftSearch, ensure you have the following installed:
 
 - **Operating System**: UNIX-based system (Linux, macOS, BSD)
-- **Compiler**: C++20 compatible compiler
-  - GCC 10+ or Clang 10+
-- **Build Tools**: Make or CMake
-- **Standard Library**: Full C++20 standard library support with threading
+- **Compiler**: C++23 compatible compiler
+  - Apple Clang 17+ / LLVM Clang 18+, or GCC 14+
+- **Build Tools**: CMake 3.25+
+- **Standard Library**: `std::print`/`std::println` support with threading
+  - libc++ 18+ or libstdc++ 14+
 
 ## Installation
 
@@ -22,22 +23,23 @@ cd swiftSearch
 ### 2. Build the Project
 
 ```bash
-# If using Make
-make
-
-# If using CMake
-mkdir build
-cd build
-cmake ..
-make
+cmake -S . -B build
+cmake --build build
 ```
 
-The compiled executable will be located in the `bin/` directory.
+The compiled executable will be located at `build/bin/swiftSearch`.
+
+CMake defaults the build type to `RelWithDebInfo`. For a debug build:
+
+```bash
+cmake -S . -B build-debug -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-debug
+```
 
 ### 3. Verify Installation
 
 ```bash
-./bin/swiftSearch
+./build/bin/swiftSearch
 ```
 You should see:
 ```

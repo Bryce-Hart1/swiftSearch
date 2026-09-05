@@ -51,8 +51,11 @@ findAll finds either one or all references to the string provided by the user in
 # Usage
 ## System Requirements
 - **Operating System**: UNIX-based systems (Linux, macOS)
-- **Compiler**: C++20 compatible compiler (GCC 10+, Clang 10+)
-- **Standard Library**: Full C++20 standard library support
+- **Compiler**: C++23 compatible compiler
+  - Apple Clang 17+ / LLVM Clang 18+, or GCC 14+
+  - `std::print`/`std::println` are used throughout, so the standard library
+    matters more than the compiler version: libc++ 18+ or libstdc++ 14+
+- **Build Tools**: CMake 3.25+
 
 ## Start guide
 Please refer to the other markdown file in this repo titled: `STARTGUIDE.md` for further explanantion beyond what I go over here.

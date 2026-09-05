@@ -10,6 +10,7 @@
 #include <fstream>
 #include <exception>
 #include <thread>
+#include <stdexcept>
 
 using fsError = std::filesystem::filesystem_error;
 
@@ -22,11 +23,21 @@ void findAll(file f, std::string keyWord){
     using namespace std;
 
     print::Thread(str::enter, f.getFileName());
+
+    if(keyWord.empty()){ //parseWindow(0) would pop_front an empty deque
+        print::Debug("Empty search term, nothing to look for in " + f.getFileName());
+        print::Thread(str::exit, f.getFileName());
+        return;
+    }
+
     simpleCount counter;
 
     char ch; //takes whats coming in character by character
     parseWindow Window(keyWord.size());
-    int rowOffile = 0;
+    //rowOffile used to be initialised to 0 and never incremented, so every hit
+    //reported line 0. lines are 1-based; the counter tracks the line the match
+    //ENDS on, since the window only completes keyWord.size() bytes in.
+    unsigned long long rowOffile = 1;
     try{
     ifstream inputFile(f.filePathToStr());
     inputFile >> noskipws; //reads everything w spaces
@@ -34,8 +45,11 @@ void findAll(file f, std::string keyWord){
             while(inputFile >> ch){
                 Window.move(ch);
                 if(Window.isCorrectSequence(keyWord)){
+                    counter.incrementBy(1); //increment first: instances are 1-based
                     print::Found(keyWord, f.getFileName(), counter.getCount(), rowOffile);
-                    counter.incrementBy(1);
+                }
+                if(ch == '\n'){
+                    rowOffile++;
                 }
             }
         }else{
@@ -73,7 +87,7 @@ void wordFreq(file f, threadsafe::Trie& wordTree){
 /**
  * @brief works with word freq/trie to print to file 
  */
-void printToFile(std::vector<std::string> words){
+void printToFile(const std::vector<std::string>& words){
     using namespace std;
     ofstream outfile;
     outfile.open("Words.txt");
@@ -90,11 +104,16 @@ void printToFile(std::vector<std::string> words){
             if(words.at(i-1) == words.at(i)){ //another instance, just continue after incrementing
                 current_wordsCount++;
             }else{ //print word and count at i-1 and overwrite
-                outfile << current_wordsCount << ": " << wordToPrint << endl;
+                outfile << current_wordsCount << ": " << wordToPrint << "\n";
                 current_wordsCount = 1;
                 wordToPrint = words.at(i);
             }
         }
+    }
+    //the last group was still buffered here and never written, so the
+    //alphabetically last word never made it into the file
+    if(!words.empty()){
+        outfile << current_wordsCount << ": " << wordToPrint << "\n";
     }
     outfile.close();
     print::User("All words are saved in Words.txt"); 
@@ -117,7 +136,7 @@ void charFreq(file f, characterBucket &cBucket){
         while(input >> word){
             for(char letter : word){
                 cBucket.addTo(letter);
-
+                debugCounter++;
             }
         }
     }catch(const std::exception &e){
@@ -190,6 +209,11 @@ numberList singleList(file f){
 void assignOperation(OP_TYPE operation, std::queue<file> filesList){
     std::vector<std::thread> threadVector;
 
+    if(filesList.empty()){
+        print::User("No files to scan.");
+        return;
+    }
+
         switch(operation){
             case OP_TYPE::INFO :{ //making this simple operation run through on a single loop
                 print::Debug("Operation Type: INFO has started");
@@ -254,6 +278,11 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 }
             joinThreads(threadVector);
             break;
+            }
+            case OP_TYPE::UNSET:
+            default: {
+                print::Error(std::runtime_error("No operation was set"));
+                break;
             }
     }
     

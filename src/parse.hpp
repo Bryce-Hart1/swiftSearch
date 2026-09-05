@@ -1,17 +1,19 @@
+#pragma once
+
 #include "constants.hpp"
 #include "classes.hpp"
-#include "tokenize.hpp"
 #include "tsTrie.hpp"
 
 #include<vector>
 #include<thread>
+#include<queue>
 
 
 void findAll(file filename, std::string keyWord);
 
 void wordFreq(file f, threadsafe::Trie& wordTree);
 
-void printToFile(std::vector<std::string> words);
+void printToFile(const std::vector<std::string>& words);
 
 void charFreq(file fileName, characterBucket &cBucket);
 

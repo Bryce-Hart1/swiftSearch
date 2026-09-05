@@ -21,12 +21,12 @@ char toLower(unsigned char value);
 class atomCharPair{
     public:
     void increment();
-    char getValue();
-    int getCount();
-    void setIntialValue();
+    char getValue() const;
+    std::size_t getCount() const;      //was int: truncated the atomic<size_t>
+    void setIntialValue(char c);       //takes the char now; value used to be left uninitialised
     private:
-    char value;
-    std::atomic<size_t> count;
+    char value{0};
+    std::atomic<std::size_t> count{0}; //was uninitialised: indeterminate on read
 };
 
 
@@ -35,13 +35,13 @@ class characterBucket {
 public:
     characterBucket();
     void addTo(char value);
-    void printAll();
-    char getValueAt(int value);
-    size_t getCounterAt(int value);
+    void printAll() const;
+    char getValueAt(std::size_t value) const;    //was int: signed index into the array
+    std::size_t getCounterAt(std::size_t value) const;
 
 
 private:
-    std::array<atomCharPair, 255> buckets; //255 is for all ascii values
+    std::array<atomCharPair, 256> buckets; //256 slots: every possible byte value 0-255
     bool ignoreCaps;
 };
 
@@ -49,9 +49,9 @@ private:
 class simpleCount{
     public:
     void incrementBy(int amount);
-    unsigned long long int getCount();
+    unsigned long long int getCount() const;
     private:
-    std::atomic<unsigned long long int> count;
+    std::atomic<unsigned long long int> count{0}; //was uninitialised: indeterminate on read
 };
 
 
@@ -96,8 +96,8 @@ class file{
     void setPath(std::filesystem::path path);
     private:
     std::string fileName;
-    std::uintmax_t sizeOfFile;
-    std::filesystem::file_type enumFileType;
+    std::uintmax_t sizeOfFile{0};
+    std::filesystem::file_type enumFileType{std::filesystem::file_type::none};
     std::filesystem::path fsPath; //Non string type
 };
 
@@ -130,7 +130,7 @@ public:
     std::vector<long long int> sendIntVector();
     void add(long long int data);
     void add(long double data);
-    void addVec(numberList data);
+    void addVec(const numberList& data); //was by value: copied the entire vector
     void setType(LIST_TYPE);
     bool isIntTypeList();
     void printList();
@@ -146,7 +146,6 @@ public:
 
 namespace numberListHelper{
     numberList combinedList(std::queue<file> files);
-    inline std::mutex combinedListLock;
 }
 
 
