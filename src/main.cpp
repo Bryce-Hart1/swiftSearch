@@ -2,6 +2,7 @@
 #include"tokenize.hpp" //check this cpp for how the tokenizer parses user input
 #include"classes.hpp" //check this cpp for all class implementations 
 #include"constants.hpp" //check this for print:: namespace, boolean flags and other global functions
+#include"options.hpp" //new addition for the work in progress CLI rewrite
 
 #include <optional>
 #include <cstdlib>
@@ -55,6 +56,29 @@ std::string boot(){
     }
 }
 
+
+
+class swiftSearch{
+    swiftSearch(const swift_search::options& o){
+        
+    }
+
+    public:
+    int runSwiftSearchInCliMode(){
+
+    }
+    bool doOperation(const std::string_view& args){
+
+    }
+
+
+
+
+    private:
+    swift_search::options _options;
+    
+};
+
 int main(){
     std::string argumentArr = boot();
     Timer mainWatch;
@@ -64,13 +88,13 @@ int main(){
     //null, and a copy that leaked the new'd object behind it
     std::optional<fileTreeStructure> fileStruct = tokenize(argumentArr, std::ref(mainWatch));
     if(!fileStruct.has_value()){
-        print::Debug("Could not build a file list, exiting");
+        print::showDebug("Could not build a file list, exiting");
         return EXIT_FAILURE; //main used to return 0 on every path
     }
 
     assignOperation(operationTypeOfParse, fileStruct->createFileQueue()); //all work gets done here
     mainWatch.stop(); //stop and print
     print::User("Program has completed in " + mainWatch.readableTime());
-    print::Debug("Program sucessfully exited");
+    print::showDebug("Program successfully exited");
     return EXIT_SUCCESS;
 }

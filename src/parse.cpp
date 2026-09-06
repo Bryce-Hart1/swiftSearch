@@ -199,8 +199,8 @@ numberList singleList(file f){
 
 
 /**
- * @fn assignOpertation 
- * @brief does most of the main operation work at runtime, including assigning opertations through the switch,
+ * @fn assignOperation 
+ * @brief does most of the main operation work at runtime, including assigning operations through the switch,
  * doing the related work with that operation, and eventually returning after using @fn joinThreads if needed
  * @param operation previously set operation type 
  * @param filesList queue of files to run through
@@ -237,7 +237,7 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                 mainList.sort();
                 mainList.reverse();
                 mainList.printToFile("ReverseSortedList.txt");
-                print::User("Finshed list is in ReverseSortedList.txt");
+                print::User("Finished list is in ReverseSortedList.txt");
                 break;
             }
             case OP_TYPE::SORTED_LIST: {
@@ -253,7 +253,7 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
                     threadVector.emplace_back(charFreq, filesList.front(), std::ref(bucketArr));
                     filesList.pop();
                 }
-                joinThreads(threadVector); //seperate join function
+                joinThreads(threadVector); //separate join function
                 bucketArr.printAll(); 
                 break;
             }

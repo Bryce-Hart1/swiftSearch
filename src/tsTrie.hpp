@@ -27,7 +27,7 @@ class Trie{
     public:
     /**
      * @version - 1.1
-     * @brief node class is wrapped inside Trie class and not accessable by user
+     * @brief node class is wrapped inside Trie class and not accessible by user
      * 
      * 
      * LOCKING, as it actually stands:
