@@ -8,9 +8,10 @@
 ```
 ### Whats new In 1.2V?
 
-- returnReadableSize division error
+- fixed returnReadableSize division error
 - Fixed UB bug with blank input
 - Atomic initialization bug
+- reordered file structure
 
 
 --------------- 
