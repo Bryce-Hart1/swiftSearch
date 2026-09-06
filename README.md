@@ -6,6 +6,14 @@
  ___) \ V  V /| |  _| |_ ___) |  __/ (_| | | | (__| | | |
 |____/ \_/\_/ |_|_|  \__|____/ \___|\__,_|_|  \___|_| |_|
 ```
+### Whats new In 1.2V?
+
+- returnReadableSize division error
+- Fixed UB bug with blank input
+- Atomic initialization bug
+
+
+--------------- 
 
 This is my multithreaded and OOP focused Project in C++.
 The main goal of this project is to show ADT design and multithreading to create runtime-effective searching. 
