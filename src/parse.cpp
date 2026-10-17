@@ -1,7 +1,5 @@
-#include "parse.hpp"
 #include "constants.hpp"
 #include "classes.hpp"
-#include "tsTrie.hpp"
 
 #include <filesystem>
 #include <vector>
@@ -9,7 +7,6 @@
 #include <string>
 #include <fstream>
 #include <exception>
-#include <thread>
 #include <stdexcept>
 
 using fsError = std::filesystem::filesystem_error;
