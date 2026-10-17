@@ -1,0 +1,8 @@
+[submodule "src/path/to/bstd"]
+	path = src/path/to/bstd
+	url = https://github.com/Bryce-Hart1/Threadsafe-data-structures.git
+	branch = cpp_main
+[submodule "src/bstd"]
+	path = src/bstd
+	url = https://github.com/Bryce-Hart1/Threadsafe-data-structures.git
+	branch = cpp_main

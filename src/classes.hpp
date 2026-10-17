@@ -1,161 +1,457 @@
-#pragma once
+#include "classes.hpp"
+#include "constants.hpp"
+#include "parse.hpp"
+#include "tsTrie.hpp"
 
-#include <string>
-#include <exception>
-#include <array>
-#include <atomic>
 #include <vector>
-#include <mutex>
-#include <functional>
-#include <queue>
+#include <array>
+#include <exception>
+#include <string>
+#include <atomic>
 #include <filesystem>
+#include <mutex>
+#include <memory>
+#include <sstream>
+#include <functional>
+#include <fstream>
+#include <future>
+#include <algorithm>
 #include <deque>
+#include <iomanip>
+#include <print>
 
+char toLower(unsigned char value) {
+    if(value >= 'A' && value <= 'Z') {
+        return value + 32;
+    }
+    return value;
+}
 
-using highResClock = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
-
-char toLower(unsigned char value);
-
-
+/**
+ * @class partners with characterBucket
+ * holds a set of values 
+ * [a]
+ * [1]
+ */
 class atomCharPair{
-    public:
-    void increment();
-    char getValue() const;
-    std::size_t getCount() const;      //was int: truncated the atomic<size_t>
-    void setIntialValue(char c);       //takes the char now; value used to be left uninitialised
     private:
-    char value{0};
-    std::atomic<std::size_t> count{0}; //was uninitialised: indeterminate on read
+    char _value;
+    std::atomic<std::size_t> _count;
+
+    public:
+    atomCharPair(const char& value) : _value(value), _count(0){}
+
+    void increment(){
+        this->_count.fetch_add(1);
+    }
+
+    std::size_t getCount() const{
+        return (this->_count.load(std::memory_order_relaxed));
+    }
+    char value() const noexcept{
+        return this->_value;
+    }
 };
 
-
-class characterBucket {
-    
+/**
+ * @class characterBucket - stores counts of all characters found
+ * @details does a opertation to add characters to buckets to print the count of them later
+ * only will add ascii values to buckets (extended ascii: 0 - 255)
+ * holds in array style, where everytime an element is accessed by the value of its char
+ * [a][b][c][d][e]...
+ * [1][0][9][3][5]...
+ * MycharacterBucket.addTo(b);
+ * [a][b][c][d][e]...
+ * [1][1][9][3][5]...
+ */
+class CharacterBucket{
+    std::vector<atomCharPair> _buckets;
+    bool _ignoreCaps;
 public:
-    characterBucket();
-    void addTo(char value);
-    void printAll() const;
-    char getValueAt(std::size_t value) const;    //was int: signed index into the array
-    std::size_t getCounterAt(std::size_t value) const;
-
-
-private:
-    std::array<atomCharPair, 256> buckets; //256 slots: every possible byte value 0-255
-    bool ignoreCaps;
+    explicit CharacterBucket(bool no_capitals) : _ignoreCaps(no_capitals) {}
+  /**
+    * char is signed on this platform, so any byte >= 0x80 (every UTF-8 continuation
+    * byte, every accented letter, smart quote, em dash) used to convert to a huge
+    * size_type and make .at() throw. charFreq caught that and abandoned the rest of
+    * the file, so non-ASCII input silently produced wrong counts.
+    */
+    void addTo(char value){
+        this->_buckets[static_cast<unsigned char>(value)].increment();
+    }
+    std::size_t totalSize() const noexcept{
+        std::size_t r{0};
+        for(const auto& bucket : _buckets){
+            r += bucket.getCount();
+        }
+        return r;
+    }
 };
 
-
-class simpleCount{
-    public:
-    void incrementBy(int amount);
-    unsigned long long int getCount() const;
+/**
+ * @class an atomic counter.
+ * use getCount to get count from a value, and incrementBy to change the count by a given amount.
+ */
+class SimpleCount{
     private:
-    std::atomic<unsigned long long int> count{0}; //was uninitialised: indeterminate on read
+    std::atomic<std::size_t> count;
+
+
+    std::size_t getCount() const{
+        return (this->count.load(std::memory_order_relaxed));
+    }
+
+    void incrementBy(int amount){
+        this->count.fetch_add(amount);
+    }
+
+
+
 };
+/**
+ * @class numberList
+ * wraps over std::vector and just picks between a long long int or a long double
+ */
+class NumberList{
+numberList::numberList(const bool& is_doubles){
+    if(is_doubles){
+        this->setType(LIST_TYPE::DOUBLE);
+    }else{
+        this->setType(LIST_TYPE::INT);
+    }
+}
+
+void numberList::add(long long int data){
+    iList.push_back(data);
+}
+void numberList::add(long double data){
+    dList.push_back(data);
+}
+
+
+
+void numberList::addVec(const numberList& other){
+    if(this->isIntTypeList()){
+        this->iList.insert(this->iList.end(), other.iList.begin(), other.iList.end());
+    }else{
+        this->dList.insert(this->dList.end(), other.dList.begin(), other.dList.end());
+    }
+}
+
+void numberList::setType(LIST_TYPE x){
+    this->type = x;
+}
+
+bool numberList::isIntTypeList(){
+    if(this->type == LIST_TYPE::INT){
+        return true;
+    }
+    return false;
+}
+
+std::vector<long long int> numberList::sendIntVector(){
+    return this->iList;
+}
+
+std::vector<long double> numberList::sendDoubleVector(){
+    return this->dList;
+}
+
+void numberList::sort(){
+    if(isIntTypeList()){
+        std::sort(iList.begin(), iList.end());
+    }else{
+        std::sort(dList.begin(), dList.end());
+    }
+}
+
+
+void numberList::reverse(){
+    if(isIntTypeList()){
+        std::reverse(this->iList.begin(), this->iList.end());
+    }else{
+        std::reverse(this->dList.begin(), this->dList.end());
+    }
+}
 
 
 
 
+}
+/**
+ * combines all vectors from singleLists() and waits for all threads to finish, and combines them
+ * @details passes in file class, not string
+ */
+numberList numberListHelper::combinedList(std::queue<file> files){
+    numberList mainList{};
+    std::vector<std::future<numberList>> futureList;
+
+    while(!files.empty()){
+        //without std::launch::async the implementation may run these deferred,
+        //on the calling thread, meaning this path was not necessarily parallel at all
+        futureList.push_back(std::async(std::launch::async, singleList, files.front()));
+        files.pop();
+    }
+    for(size_t i = 0; i < futureList.size(); i++){
+        mainList.addVec(futureList[i].get()); //get vector at that vector position, and add to the main vector
+    }
+    return mainList; //return the full list 
+}
 
 
-class Timer{
-    public:
-        void start();
-        void stop();
-        double timeInMilliseconds() const;
-        void reset();
-        void printCurrentTime() const ;
-        std::string readableTime();
-    private:
-    highResClock startTime;
-    highResClock endTime;
-    bool running = false;
-};
+/**
+ * @class timer - this class keeps up with the clock to document how long an opertation takes
+ */
+
+
+void Timer::start(){
+    startTime = std::chrono::high_resolution_clock::now();
+    running = true;
+}
+    
+void Timer::stop() {
+    endTime = std::chrono::high_resolution_clock::now();
+    running = false;
+}
+    
+double Timer::timeInMilliseconds() const {
+    auto end = running ? std::chrono::high_resolution_clock::now() : endTime;
+    return std::chrono::duration<double, std::milli>(end - startTime).count();
+}
+    
+
+void Timer::reset() {
+    startTime = std::chrono::high_resolution_clock::now();
+    running = true;
+}
+    
+void Timer::printCurrentTime() const {
+    std::println(std::cout, "{} ms", this->timeInMilliseconds());
+}
+  
+//returns a string type in a Digits - measurement format. no spacing. up to minutes
+std::string Timer::readableTime(){
+    long double timeElapsed = (long double)this->timeInMilliseconds();
+    if(timeElapsed < 1000.0){ //less than one second (1000 milliseconds)
+        return (std::to_string(timeElapsed) + " ms");
+    }
+    timeElapsed /= 1000; //now in seconds format
+    if(timeElapsed < 60){ //if less than a minute
+        return (std::to_string(timeElapsed) + " s");
+    }
+    timeElapsed /= 60; //now in minutes
+    return (std::to_string(timeElapsed) + " min");
+}
+
+
 
 
 
 /**
- * @class the redesigned file class, to accompany the fileTreeStructure class. This will keep basic 
- * info about the file for quick lookup
- * 
+ * @class file creads a file object for every file in the directory being scanned
  */
-class file{
-    public:
-    file();
-    file(std::string name); //for assigning new files
-    std::filesystem::path getfsPath(); //this should be primary condition of each file
-    std::string getFileName();
-    unsigned long long int getFileSize();
-    std::string returnReadableSize();
-    std::filesystem::file_type getEnumType();
-    std::string filePathToStr();
-    void setFileName(std::string name);
-    void setFileSize(std::uintmax_t size);
-    void setEnumType(std::filesystem::file_type type);
-    void setPath(std::filesystem::path path);
-    private:
-    std::string fileName;
-    std::uintmax_t sizeOfFile{0};
-    std::filesystem::file_type enumFileType{std::filesystem::file_type::none};
-    std::filesystem::path fsPath; //Non string type
-};
+file::file(){
+    this->fileName = "Unassigned";
+}
 
-
-class fileTreeStructure{
-    public:
-    fileTreeStructure(file root); //putting setup in constructor
-
-    std::queue<file> createFileQueue();
-    std::string getNameAt(int value); //meant to interate over
-    std::string fileTypeToString(std::filesystem::file_type type);
-    std::filesystem::file_type returnEnumTypeAt(int value);
-    std::string getPathAt(int value);
-    size_t entrysInStruct();
-    void printAll();
-    private:
-    std::vector<file> storedFiles;
-    
-};
-
-class numberList{
-    enum class LIST_TYPE{
-        UNSET,
-        DOUBLE,
-        INT
-    };
-public:
-    numberList();
-    std::vector<long double> sendDoubleVector();
-    std::vector<long long int> sendIntVector();
-    void add(long long int data);
-    void add(long double data);
-    void addVec(const numberList& data); //was by value: copied the entire vector
-    void setType(LIST_TYPE);
-    bool isIntTypeList();
-    void printList();
-    void printToFile(std::string preDefName);
-    void sort();
-    void reverse();
-    private:
-    LIST_TYPE type;
-    std::vector<long double> dList;
-    std::vector<long long int> iList;
-};
-
-
-namespace numberListHelper{
-    numberList combinedList(std::queue<file> files);
+//root shoul;dnt matter with new design
+file::file(std::string name){
+    try{
+        this->fileName = name;
+        this->fsPath = std::filesystem::path(name);
+    }catch(const std::exception& e){
+        std::cerr << e.what() << std::endl;
+    }
 }
 
 
-class parseWindow{
-    public:
-    parseWindow(size_t size);
-    void move(char c);
-    std::string getWindow() const;
-    bool isCorrectSequence(const std::string& compare) const;
-    private:
-    std::deque<char> window;
-    size_t windowSize;
-};
+std::string file::getFileName(){
+    return (this->fileName);
+}
+
+std::string file::filePathToStr(){
+    return (this->fsPath.string());
+}
+
+//returns size in bytes
+unsigned long long int file::getFileSize(){
+    return static_cast<unsigned long long int>(this->sizeOfFile);
+}
+
+
+//returns a readable size for the user
+std::string file::returnReadableSize(){
+    //this used to label the tiers without ever dividing, so a 5000 byte file
+    //reported "5000 kilobytes" and a 5 MB file reported "5000000 gigabytes".
+    //megabytes were skipped entirely.
+    const unsigned long long int fileSize = (this->getFileSize());
+    const char* unitNames[] = {"bytes", "kilobytes", "megabytes", "gigabytes", "terabytes"};
+
+    if(fileSize < 1000){
+        return (std::to_string(fileSize) + " bytes");
+    }
+
+    long double scaled = static_cast<long double>(fileSize);
+    std::size_t unit = 0;
+    while(scaled >= 1000.0L && unit + 1 < (sizeof(unitNames) / sizeof(unitNames[0]))){
+        scaled /= 1000.0L;
+        unit++;
+    }
+
+    //one decimal place, no trailing ".000000" from std::to_string
+    std::ostringstream out;
+    out << std::fixed << std::setprecision(1) << scaled << ' ' << unitNames[unit];
+    return out.str();
+}
+
+//returns enum of file type from file_type enum
+std::filesystem::file_type file::getEnumType(){
+    return (this->enumFileType);
+}
+
+//returns path type
+std::filesystem::path file::getfsPath(){
+    return(this->fsPath);
+}
+
+void file::setFileName(std::string name){
+    this->fileName = name;
+}
+void file::setFileSize(std::uintmax_t size){
+    this->sizeOfFile = size;
+}
+void file::setEnumType(std::filesystem::file_type type){
+    this->enumFileType = type;
+}
+void file::setPath(std::filesystem::path path){
+    this->fsPath = path;
+}
+
+
+
+
+/**
+ * @class fileTreeStructure
+ * is not actually a tree, is a 1d vector that has no ordered values
+ * to create a fileTree, a given root is scanned using file 
+ */
+
+//creates whole tree from the root file given
+fileTreeStructure::fileTreeStructure(file root){
+    namespace fs = std::filesystem;
+    try{
+        //a single file is a legitimate target. recursive_directory_iterator throws
+        //on anything that is not a directory, which used to leave storedFiles empty
+        //and make every operation quietly scan nothing.
+        if(fs::is_regular_file(root.getfsPath())){
+            file only;
+            only.setFileName(root.getfsPath().filename().generic_string());
+            only.setPath(root.getfsPath());
+            only.setEnumType(fs::file_type::regular);
+            only.setFileSize(fs::file_size(root.getfsPath()));
+            storedFiles.push_back(only);
+            return;
+        }
+
+        if(!fs::exists(root.getfsPath())){
+            print::Error(std::runtime_error("Path does not exist: " + root.getfsPath().string()));
+            return;
+        }
+
+        for(const auto &entry : std::filesystem::recursive_directory_iterator(root.getfsPath())){
+            file x;
+            x.setFileName(entry.path().filename().generic_string());
+            x.setPath(entry.path());
+            x.setEnumType(entry.status().type());
+
+            if(entry.is_regular_file()){ //dont wanna set size for anything that isnt a normal file
+                x.setFileSize(entry.file_size());
+            }else{
+                x.setFileSize(0); //no size
+            }
+            storedFiles.push_back(x);
+        }
+
+    }catch(const std::exception& e){
+        std::cerr << e.what() << std::endl;
+    }
+}
+
+//returns string of name of individal file
+std::string fileTreeStructure::getNameAt(int value){
+    return (this->storedFiles.at(value).getFileName());
+}
+
+
+//returns enum, not string type
+std::filesystem::file_type fileTreeStructure::returnEnumTypeAt(int value){
+    return (this->storedFiles.at(value).getEnumType());
+}
+
+
+//returns string type from path type
+std::string fileTreeStructure::getPathAt(int value){
+    return (this->storedFiles.at(value).getfsPath().generic_string());
+}
+
+//converts enum type to a readable string
+std::string fileTreeStructure::fileTypeToString(std::filesystem::file_type type) {
+    namespace fs = std::filesystem;
+    switch(type) {
+        case fs::file_type::regular:    return "regular file";
+        case fs::file_type::directory:  return "directory";
+        case fs::file_type::symlink:    return "symlink";
+        case fs::file_type::block:      return "block device";
+        case fs::file_type::character:  return "character device";
+        case fs::file_type::fifo:       return "fifo";
+        case fs::file_type::socket:     return "socket";
+        case fs::file_type::unknown:    return "unknown";
+        case fs::file_type::not_found:  return "not found";
+        default:                                     
+        return "none";
+    }
+}
+
+
+//creates a queue of nodes to traverse based off of the orginal vector
+std::queue<file> fileTreeStructure::createFileQueue(){
+    std::queue<file> names; 
+    for(file f : this->storedFiles){
+        names.push(f);
+    }
+    return names;
+}
+
+size_t fileTreeStructure::entrysInStruct(){
+    return this->storedFiles.size();
+}
+
+
+//only prints name of file and path. for debug 
+void fileTreeStructure::printAll(){
+    for(auto& f : this->storedFiles){
+        //std::println(f.getFileName());
+        std::println(std::cout, "path: {}", f.filePathToStr());
+    }
+}
+
+
+/**
+ * @class parseWindow
+ */
+parseWindow::parseWindow(size_t sizeInChars) : windowSize(sizeInChars) {}
+
+void parseWindow::move(char c){
+    if(window.size() == windowSize){
+    window.pop_front();
+    }
+    window.push_back(c);
+}
+
+std::string parseWindow::getWindow() const {
+    return std::string(window.begin(), window.end());
+}
+    
+bool parseWindow::isCorrectSequence(const std::string& compare) const{
+    if(window.size() != compare.size()) return false;
+        return std::equal(window.begin(), window.end(), compare.begin());
+}

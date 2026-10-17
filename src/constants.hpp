@@ -12,7 +12,7 @@
  */
 #pragma once
 
-
+#include "bstd/bstd.hpp"
 #include <iostream>
 #include <thread>
 #include <syncstream>
@@ -22,12 +22,11 @@
 #include <mutex>
 #include <unistd.h>
 
-#include "tsTrie.hpp" //my own trie implementation
 
 
 
 
-enum class OP_TYPE{
+enum class OPERATION_TYPE{
     UNSET,   //so a malformed command cannot dispatch on an indeterminate value
     INFO,
     SORTED_LIST,
@@ -38,7 +37,7 @@ enum class OP_TYPE{
     FIND_ALL,
 };
 
-inline OP_TYPE operationTypeOfParse = OP_TYPE::UNSET; //global indicator for operatation to be done on files
+inline OPERATION_TYPE operationTypeOfParse = OPERATION_TYPE::UNSET; //global indicator for operatation to be done on files
 inline std::mutex printMutex; //the global mutex for all print functions to insure synced printing
 
 inline std::string LOOK_FOR_WORD;
