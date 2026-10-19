@@ -1,5 +1,9 @@
+#include <cstddef>
+#include <exception>
+#include <stdexcept>
 #include <vector>
 #include <atomic>
+#include "bstd/bit/bitBuffer.hpp"
 #pragma once
 
 namespace help{
@@ -92,3 +96,61 @@ class SimpleCount{
 
 
 };
+
+class ImprovedBuffer : public bstd::bit::BitBuffer{
+    public: 
+    ImprovedBuffer subBuffer(const std::size_t& begin, const std::size_t& end){
+        if(begin > end || end > size() || begin < 0){
+            std::out_of_range("requested buffer parameters are out of range");
+        }
+        ImprovedBuffer t{};
+        for(std::size_t i{0}; i < end; i++){
+            t.push(at(i));
+        }
+        return t;
+    }
+};
+
+
+class data{
+    using BitBuffer = bstd::bit::BitBuffer;
+    static constexpr unsigned char NAME_SIZE = 15;
+    static constexpr unsigned char DATA_MARKER_SIZE = 1;
+    static constexpr char END_OF_TEXT = '\0';
+
+    private:
+    u_int8_t how_many_bytes(const std::size_t& size_in_bytes){
+        if(size_in_bytes < 255){
+            return 1;
+        }else if(size_in_bytes < )
+    }
+    data init(const std::string& name, const ImprovedBuffer& bitBuf){
+        ImprovedBuffer initialize{};
+        const std::size_t full_size = (name.size() + 1) + bitBuf.byteSize();
+        for(const char& c : name){
+            initialize.push(static_cast<uint8_t>(c));
+        }
+        initialize.push(static_cast<u_int8_t>(END_OF_TEXT)); //end name
+
+        
+    }
+    public:
+    explicit data(const std::string& name, const ImprovedBuffer& bitBuf){
+        _data = init(name, bitBuf);
+    }
+
+    std::size_t totalSize(){
+        return _data.size();   
+    }
+
+    BitBuffer underlying_data(){
+        return _data;
+    }
+
+    private:
+    //first 15 bytes : chars of name, next 4.5: size of incoming data: 
+    ImprovedBuffer _data;
+};
+
+
+
