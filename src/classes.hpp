@@ -1,9 +1,12 @@
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <stdexcept>
 #include <vector>
 #include <atomic>
 #include "bstd/bit/bitBuffer.hpp"
+#include "bstd/store/serialize.hpp"
 #pragma once
 
 namespace help{
@@ -99,12 +102,12 @@ class SimpleCount{
 
 class ImprovedBuffer : public bstd::bit::BitBuffer{
     public: 
-    ImprovedBuffer subBuffer(const std::size_t& begin, const std::size_t& end){
-        if(begin > end || end > size() || begin < 0){
-            std::out_of_range("requested buffer parameters are out of range");
+    ImprovedBuffer subBuffer(std::size_t begin, std::size_t end) const {
+        if (begin > end || end > size()) {
+            throw std::out_of_range("requested buffer parameters are out of range");
         }
         ImprovedBuffer t{};
-        for(std::size_t i{0}; i < end; i++){
+        for (std::size_t i = begin; i < end; ++i) {
             t.push(at(i));
         }
         return t;
@@ -119,21 +122,32 @@ class data{
     static constexpr char END_OF_TEXT = '\0';
 
     private:
-    u_int8_t how_many_bytes(const std::size_t& size_in_bytes){
-        if(size_in_bytes < 255){
-            return 1;
-        }else if(size_in_bytes < )
+    //how many bytes will be needed to store size variable?
+    static constexpr std::uint8_t how_many_bytes(std::uint64_t n) {
+        if (n <= 0xFFull)        return 1;
+        if (n <= 0xFFFFull)      return 2;
+        if (n <= 0xFFFFFFull)    return 3;
+        if (n <= 0xFFFFFFFFull)  return 4;
+        return 8;
     }
-    data init(const std::string& name, const ImprovedBuffer& bitBuf){
-        ImprovedBuffer initialize{};
-        const std::size_t full_size = (name.size() + 1) + bitBuf.byteSize();
-        for(const char& c : name){
-            initialize.push(static_cast<uint8_t>(c));
-        }
-        initialize.push(static_cast<u_int8_t>(END_OF_TEXT)); //end name
 
-        
+    ImprovedBuffer init(const std::string& name, const ImprovedBuffer& payload) {
+        ImprovedBuffer out{};
+        for(unsigned char c : name) out.push(static_cast<std::uint8_t>(c));
+        out.push(static_cast<std::uint8_t>(END_OF_TEXT));
+        _jump_to_null_terminator = (name.size() + 1) * 8;
+
+        std::uint8_t n = how_many_bytes(payload.size());
+        while (n--) out.push(true);
+        out.push(false);
+
+        BitBuffer number{};
+        number.from(payload.size());
+        out.push(number);
+        out.push(payload);
+        return out;
     }
+
     public:
     explicit data(const std::string& name, const ImprovedBuffer& bitBuf){
         _data = init(name, bitBuf);
@@ -144,12 +158,42 @@ class data{
     }
 
     BitBuffer underlying_data(){
-        return _data;
+        std::size_t itr = _jump_to_null_terminator;
+        int skip_past = 0;
+        while(true){
+            if(_data.at(itr)){
+                skip_past++;
+            }else{
+                break;
+            }
+            itr++;
+        }
+        itr++; //go over 0
+        itr += (8 * skip_past);
+        return _data.subBuffer(itr, _data.end().idx);
+    }
+
+    std::string name(){
+        std::string n{};
+        char c = '0';
+        std::size_t itr{0};
+        BitBuffer temp{};
+        while(c != '\0'){
+            for(int i = 0; i < 8; i++){
+                temp.push(_data.at(itr));
+                itr++;
+            }
+            c = temp.toString().at(0);
+            n.push_back(c);
+            temp.clear();
+        }
+        return n;
     }
 
     private:
     //first 15 bytes : chars of name, next 4.5: size of incoming data: 
     ImprovedBuffer _data;
+    std::size_t _jump_to_null_terminator{0};
 };
 
 
