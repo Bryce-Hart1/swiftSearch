@@ -57,9 +57,7 @@ class SwiftSearch{
         bstd::bit::BitBuffer _data; //includes 
     };
 
-    struct lookupItem{
-
-    }
+    
 
     template<typename T>
     using tsVec = bstd::ds::ts::vec<T>;
@@ -103,6 +101,8 @@ class SwiftSearch{
             std::cerr << e.what() << '\n';
         }
     }
+    
+
 
 
 

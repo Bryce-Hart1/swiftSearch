@@ -1,24 +1,15 @@
-#include <cmath>
+#include <bitset>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
+#include <optional>
 #include <stdexcept>
+#include <variant>
 #include <vector>
 #include <atomic>
 #include "bstd/bit/bitBuffer.hpp"
-#include "bstd/store/serialize.hpp"
 #pragma once
 
-namespace help{
-inline char toLower(unsigned char value) {
-    if(value >= 'A' && value <= 'Z') {
-        return value + 32;
-    }
-    return value;
-}
 
-
-} //namespace help
 /**
  * @class partners with characterBucket
  * holds a set of values 
@@ -56,27 +47,25 @@ class atomCharPair{
  * [a][b][c][d][e]...
  * [1][1][9][3][5]...
  */
-class CharacterBucket{
+template <bool NoCapitals>
+class CharacterBucket {
     std::vector<atomCharPair> _buckets;
-    bool _ignoreCaps;
-public:
-    explicit CharacterBucket(bool no_capitals) : _ignoreCaps(no_capitals) {}
-  /**
-    * char is signed on this platform, so any byte >= 0x80 (every UTF-8 continuation
-    * byte, every accented letter, smart quote, em dash) used to convert to a huge
-    * size_type and make .at() throw. charFreq caught that and abandoned the rest of
-    * the file, so non-ASCII input silently produced wrong counts.
-    */
-    void addTo(char value){
-        this->_buckets[static_cast<unsigned char>(value)].increment();
+
+    static constexpr char transform(char c) noexcept {
+        if constexpr (NoCapitals)
+            return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 32) : c;
+        else
+            return c;
     }
-    std::size_t totalSize() const noexcept{
-        std::size_t r{0};
-        for(const auto& bucket : _buckets){
-            r += bucket.getCount();
+    
+    public:
+        void addTo(char v) {
+            _buckets[static_cast<unsigned char>(transform(v))].increment();
         }
-        return r;
-    }
+        
+        std::size_t countAt(const char& c){
+            return _buckets.at(c).getCount();
+        }
 };
 
 /**
@@ -87,7 +76,6 @@ class SimpleCount{
     private:
     std::atomic<std::size_t> count;
 
-
     std::size_t getCount() const{
         return (this->count.load(std::memory_order_relaxed));
     }
@@ -95,8 +83,6 @@ class SimpleCount{
     void incrementBy(int amount){
         this->count.fetch_add(amount);
     }
-
-
 
 };
 
@@ -112,22 +98,34 @@ class ImprovedBuffer : public bstd::bit::BitBuffer{
         }
         return t;
     }
+    char makeIntoChar(std::size_t startIndex) const noexcept{
+        std::bitset<8> c{};
+        int ind = 0;
+        for(std::size_t i = startIndex; i < (startIndex + 8); i++){
+            c.set(ind, this->at(i));
+            ind++;
+        }
+        return static_cast<char>(c.to_ulong());
+    }
 };
 
 
-class data{
-    using BitBuffer = bstd::bit::BitBuffer;
-    static constexpr unsigned char NAME_SIZE = 15;
-    static constexpr unsigned char DATA_MARKER_SIZE = 1;
-    static constexpr char END_OF_TEXT = '\0';
 
+class Envelope{
+    /*
+    [how long?][name][null term][underlying data]
+    */
+
+    using BitBuffer = bstd::bit::BitBuffer;
+    static constexpr char END_OF_TEXT = '\0';
+    friend class EnvelopeUnseal;
     private:
     //how many bytes will be needed to store size variable?
     static constexpr std::uint8_t how_many_bytes(std::uint64_t n) {
-        if (n <= 0xFFull)        return 1;
-        if (n <= 0xFFFFull)      return 2;
-        if (n <= 0xFFFFFFull)    return 3;
-        if (n <= 0xFFFFFFFFull)  return 4;
+        if (n <= 0xFFull)return 1;
+        if (n <= 0xFFFFull) return 2;
+        if (n <= 0xFFFFFFull) return 3;
+        if (n <= 0xFFFFFFFFull) return 4;
         return 8;
     }
 
@@ -149,7 +147,7 @@ class data{
     }
 
     public:
-    explicit data(const std::string& name, const ImprovedBuffer& bitBuf){
+    explicit Envelope(const std::string& name, const ImprovedBuffer& bitBuf){
         _data = init(name, bitBuf);
     }
 
@@ -157,7 +155,7 @@ class data{
         return _data.size();   
     }
 
-    BitBuffer underlying_data(){
+    ImprovedBuffer underlying_data(){
         std::size_t itr = _jump_to_null_terminator;
         int skip_past = 0;
         while(true){
@@ -177,7 +175,7 @@ class data{
         std::string n{};
         char c = '0';
         std::size_t itr{0};
-        BitBuffer temp{};
+        ImprovedBuffer temp{};
         while(c != '\0'){
             for(int i = 0; i < 8; i++){
                 temp.push(_data.at(itr));
@@ -189,11 +187,119 @@ class data{
         }
         return n;
     }
+    
+    std::pair<std::string, ImprovedBuffer> contents(){
+        return {name(), underlying_data()};
+    }
+
+    
 
     private:
     //first 15 bytes : chars of name, next 4.5: size of incoming data: 
     ImprovedBuffer _data;
     std::size_t _jump_to_null_terminator{0};
+};
+
+
+class Box{
+    static constexpr std::array<bool, 5> _BOX_PREFIX{true, false, true, false, true};
+    using box_or_envelope = std::variant<Box, Envelope>;
+    friend class Envelope;
+    private:
+    std::string _box_name;
+    std::vector<box_or_envelope> _contents;
+    public:
+
+    /**
+    * add a box with no contents inside
+    */
+    Box(const std::string& name_of_box) : _box_name(name_of_box){}
+
+    Box(const std::string& name, const std::vector<box_or_envelope>& boxes) : _box_name(name), _contents(boxes){};
+
+    void addToBox(std::string& name, const ImprovedBuffer& buf){
+        Envelope temp{name, buf};
+        _contents.push_back(temp);
+    }
+    void addToBox(const ImprovedBuffer& pre_serialized){
+
+    }
+
+    std::optional<ImprovedBuffer> pullOut(const std::string& name){
+        return std::nullopt;
+    }
+
+    std::optional<ImprovedBuffer> deepSearch(const std::string& name){
+        return std::nullopt;
+    }
+
+    
+
+
+
+
+
+};
+
+
+
+
+class EnvelopeUnseal{
+    private:
+    std::optional<int> expect_number_for(const Envelope& envelope){
+        int i = 0;
+        while(envelope._data.at(i)){
+            i++;
+            if(i > 8){
+                return std::nullopt;
+            }
+        }
+        return i;
+    }
+
+
+    u_int64_t total_expected_bytes(const int& expected, const ImprovedBuffer& buf, const std::size_t& cursor){
+        u_int64_t accumulate = 0;
+        u_int64_t byte_is_worth = 1;
+        const std::size_t end = cursor + (expected * 8);
+        for(std::size_t i{end}; cursor < i; i--){
+            if(buf.at(i)){
+                accumulate += byte_is_worth;
+            }
+            byte_is_worth *= 2;
+        }
+        return accumulate;
+    }
+
+    /*
+    [how long?][name][null term][underlying data]
+    */
+    public:
+    std::optional<std::pair<std::string, std::string>> getAsString(const Envelope& envelope){
+        std::size_t cursor = 0;
+        auto expected_bytes_wrap = expect_number_for(envelope);
+        if(!expected_bytes_wrap.has_value()){
+            return std::nullopt;
+        }
+        
+        auto expected_bytes = expected_bytes_wrap.value();
+        cursor = expected_bytes;
+
+        const u_int64_t total_bytes = total_expected_bytes(expected_bytes, envelope._data, cursor);
+
+        char current = '0';
+        std::string name{};
+        while(current == '\0' && cursor < total_bytes){
+            current = envelope._data.makeIntoChar(cursor);
+            name.push_back(current);
+            cursor += 8;
+        }
+        cursor += 8; //skip over '\0'
+        std::string data = envelope._data.subBuffer(cursor, envelope._data.end().idx).toString();
+        std::pair<std::string, std::string> t{name, data};
+        return t;
+    }
+
 };
 
 
