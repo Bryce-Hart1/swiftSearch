@@ -1,11 +1,13 @@
 #include "bstd/bit/bitBuffer.hpp"
 #include "bstd/bit/writeBin.hpp"
-#include "bstd/data_structure/threadsafe/tsTrie.hpp"
 #include "bstd/data_structure/threadsafe/tsVector.hpp"
+#include "classes.hpp"
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
+#include <unordered_map>
 #include <variant>
 
 
@@ -38,35 +40,20 @@ class SwiftSearch{
 
     };
 
-    template<typename T>
-    struct data {
-    public:
-        data(std::array<char, 15> name) : _name(std::move(name)){
-            
-        }
-
-        
-
-
-
-
-
-    private:
-        std::size_t _size;
-        std::array<char, 15> _name;
-        bstd::bit::BitBuffer _data; //includes 
-    };
 
     
 
     template<typename T>
     using tsVec = bstd::ds::ts::vec<T>;
     using fsPath = std::filesystem::path;
-
-
+    using Error = std::optional<std::string>;
+    static constexpr std::nullopt_t GOOD = std::nullopt;
+    static constexpr std::string BAD(const std::string& mes){
+        return mes;
+    }
     private:
     std::vector<LockableFile> _files;
-    bstd::ds::ts::Trie _table_lookup;
+    std::unordered_map<std::string, std::size_t> _table_lookup;
     fsPath _store_path;
 
     fsPath createDatabaseFolder(const fsPath& destination){
@@ -89,6 +76,28 @@ class SwiftSearch{
     }
 
 
+    /** @attention Private helpers --------------------------------------------- */
+
+    private:
+
+    Error compact(){
+       return std::nullopt; 
+
+    }
+
+    std::optional<std::size_t> checkIndexFor(const std::string_view& item){
+        std::string lookingFor = static_cast<std::string>(item);
+        if(_table_lookup.contains(lookingFor)){
+            return  _table_lookup.at(lookingFor);
+        }else{
+            return std::nullopt;
+        }
+
+    }
+
+
+
+
     public:
     SwiftSearch(const fsPath& path) : _store_path(path){
         try {
@@ -100,6 +109,17 @@ class SwiftSearch{
         catch (const std::invalid_argument& e) {
             std::cerr << e.what() << '\n';
         }
+    }
+    
+
+    /* BEGIN PUBLIC METHODS ----------------------------------------------------------- */
+
+    std::optional<ImprovedBuffer> get(const std::string_view& item){
+        return std::nullopt;
+    }
+
+    Error put(){
+        return BAD("file failed to store");
     }
     
 

@@ -25,7 +25,7 @@ void findAll(file f, std::string keyWord){
         return;
     }
 
-    simpleCount counter;
+    SimpleCount counter;
 
     char ch; //takes whats coming in character by character
     parseWindow Window(keyWord.size());
@@ -284,14 +284,3 @@ void assignOperation(OP_TYPE operation, std::queue<file> filesList){
 }
 
 
-
-void joinThreads(std::vector<std::thread>& threadVec){
-    for(std::thread& thread : threadVec){
-        try{
-            thread.join();
-        }catch(const std::exception& e){
-            print::Error(e);
-            print::Debug("joinThreads() has failed");
-        }
-    }
-}

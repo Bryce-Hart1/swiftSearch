@@ -13,6 +13,7 @@
 #pragma once
 
 #include "bstd/bstd.hpp"
+#include "bstd/store/log.hpp"
 #include <iostream>
 #include <print>
 #include <string>
@@ -32,6 +33,17 @@ enum class OPERATION_TYPE{
     CHAR_FREQ,
     WORD_FREQ,
     FIND_ALL,
+};
+
+
+enum class VAR_TYPE{
+    CHAR, // 1 byte
+    INT, //4 bytes
+    BIG_INT, // 8 bytes
+    FLOAT, // 4 bytes
+    BIG_FLOAT, //8 bytes
+    IMG, //vary
+    BIN, //vary
 };
 
 inline OPERATION_TYPE operationTypeOfParse = OPERATION_TYPE::UNSET; //global indicator for operatation to be done on files
@@ -64,37 +76,7 @@ inline bool isNumber(const std::string& word){
 
 namespace print{
 
-inline void showDebug(const std::string& message){
-        std::lock_guard<std::mutex> lock(printMutex);
-        std::string debugStatement = "[DEBUG] || ";
-        std::println(std::cout, "{} {}", debugStatement, message);
-
-}
-
-inline void Error(const std::exception& e){
-    std::lock_guard<std::mutex> lock(printMutex);
-    std::cerr << "[EXCEPTION] :: " <<  e.what() << std::endl;
-}
-
-inline void Show_Threadtime(const std::string& message, const std::string& threadsFile){
-    std::lock_guard<std::mutex> lock(printMutex); //uses same mutex as logThread error, just in case
-    std::string threadStatement = ("[THREAD] [" + threadsFile + "]~~ ");
-    std::println(std::cout, "{} {} ", threadStatement, message);
-    
-}
-
-inline void Found(const std::string& keyWord, const std::string& fileName, std::size_t instance, std::size_t line){
-    //this format string used to have three {} for four arguments, with "|keyWord|"
-    //as literal text. keyWord printed in the line slot, line printed in the file
-    //slot, and fileName never printed at all.
-    std::lock_guard<std::mutex> lock(printMutex);
-    std::println(std::cout, "! -> instance |{}| of |{}| found at line |{}| : |{}|",
-                 instance, keyWord, line, fileName);
-}
-inline void User(const std::string& msg){
-    std::lock_guard<std::mutex> lock(printMutex);
-    std::println(std::cout, "[USER] {}", msg);
-}
+inline bstd::store::Logger swiftSearch_logbook{"swiftSearchLogs", true, true};
 
 inline void Logo(){
     using namespace std;

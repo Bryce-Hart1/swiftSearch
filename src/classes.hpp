@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 #include <atomic>
@@ -221,8 +222,8 @@ class Box{
         Envelope temp{name, buf};
         _contents.push_back(temp);
     }
-    void addToBox(const ImprovedBuffer& pre_serialized){
-
+    void addToBox(const Envelope& env){
+        _contents.push_back(env);
     }
 
     std::optional<ImprovedBuffer> pullOut(const std::string& name){
@@ -246,7 +247,7 @@ class Box{
 
 class EnvelopeUnseal{
     private:
-    std::optional<int> expect_number_for(const Envelope& envelope){
+    std::optional<int> expect_number_for(const Envelope& envelope) const{
         int i = 0;
         while(envelope._data.at(i)){
             i++;
@@ -258,7 +259,7 @@ class EnvelopeUnseal{
     }
 
 
-    u_int64_t total_expected_bytes(const int& expected, const ImprovedBuffer& buf, const std::size_t& cursor){
+    u_int64_t total_expected_bytes(const int& expected, const ImprovedBuffer& buf, const std::size_t& cursor) const{
         u_int64_t accumulate = 0;
         u_int64_t byte_is_worth = 1;
         const std::size_t end = cursor + (expected * 8);
@@ -299,6 +300,47 @@ class EnvelopeUnseal{
         std::pair<std::string, std::string> t{name, data};
         return t;
     }
+
+    //returns size of Envelope
+    std::optional<std::size_t> size(const Envelope& envelope) const{
+        std::size_t cursor = 0;
+        auto expected_bytes_wrap = expect_number_for(envelope);
+        if(!expected_bytes_wrap.has_value()){
+            return std::nullopt;
+        }
+        auto expected_bytes = expected_bytes_wrap.value();
+        cursor = expected_bytes;
+
+        return total_expected_bytes(expected_bytes, envelope._data, cursor);
+    }
+
+};
+
+
+class HotSpot{
+    class EnvQuery{
+        friend class HotSpot;
+        ImprovedBuffer _data;
+        std::string _name;
+        std::size_t _size;
+
+        std::optional<EnvQuery> makeEnvQuery(const Envelope& env){
+            EnvelopeUnseal unseal{};
+            const auto s = unseal.size(env);
+            const auto pair = unseal.getAsString(env);
+            if(!pair.has_value() || !s.has_value()){
+                return std::nullopt;
+            }
+            
+        }
+    };
+
+    std::unordered_map<std::string, EnvQuery> _data;
+
+};
+
+
+class LookUpTree{
 
 };
 
