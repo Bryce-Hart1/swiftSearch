@@ -27,10 +27,18 @@ target_compile_options(swiftSearch_warnings INTERFACE
 # The engine, minus main(). Split out so tests can link against it without
 # dragging in an entry point. This is also the first seam of the eventual
 # library/CLI split.
+# The storage engine, minus main(). Split out so tests can link against it
+# without dragging in an entry point. This is also the first seam of the
+# eventual library/CLI split.
+#
+# The V1 search sources (parse.cpp/tokenize.cpp) are NOT here: they reference an
+# API the V2 rewrite deleted and now live in legacy/, which is on no target and
+# no include path. See legacy/README.md and docs/revival-checklist.md.
 add_library(swiftSearch_core OBJECT
-    src/classes.cpp
-    src/parse.cpp
-    src/tokenize.cpp
+    src/crc32c.cpp
+    src/sha256.cpp
+    src/record.cpp
+    src/box_meta.cpp
 )
 target_include_directories(swiftSearch_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(swiftSearch_core PUBLIC Threads::Threads PRIVATE swiftSearch_warnings)

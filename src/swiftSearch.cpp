@@ -1,7 +1,7 @@
 #include "bstd/bit/bitBuffer.hpp"
 #include "bstd/bit/writeBin.hpp"
 #include "bstd/data_structure/threadsafe/tsVector.hpp"
-#include "classes.hpp"
+#include "bytes.hpp"
 #include <filesystem>
 #include <fstream>
 #include <mutex>
@@ -114,7 +114,7 @@ class SwiftSearch{
 
     /* BEGIN PUBLIC METHODS ----------------------------------------------------------- */
 
-    std::optional<ImprovedBuffer> get(const std::string_view& item){
+    std::optional<swiftsearch::Bytes> get(const std::string_view& item){
         return std::nullopt;
     }
 
