@@ -2,7 +2,7 @@
 /**
  * CRC32C (Castagnoli), the checksum the design notes call for.
  *
- * Parameterisation: reflected polynomial 0x82F63B78, init 0xFFFFFFFF,
+ * Parameterization: reflected polynomial 0x82F63B78, init 0xFFFFFFFF,
  * final XOR 0xFFFFFFFF, reflect in and out. This is CRC-32/ISCSI, whose
  * published check value for "123456789" is 0xE3069283.
  *

@@ -6,6 +6,10 @@
 #include "bytes.hpp"
 
 #if defined(__ARM_FEATURE_CRC32)
+// ACLE intrinsics (__crc32cd and friends) rather than __builtin_arm_crc32c*: the builtins are
+// clang's private spelling and GCC does not provide them, while <arm_acle.h> is the standard
+// header both compilers ship.
+#include <arm_acle.h>
 #define SS_CRC32C_HW 1
 #define SS_CRC32C_HW_ARM 1
 #elif defined(__SSE4_2__)
@@ -54,22 +58,22 @@ std::uint32_t stepHardware(std::uint32_t reg, std::span<const std::uint8_t> data
 
 #if defined(SS_CRC32C_HW_ARM)
     while (left >= 8) {
-        reg = __builtin_arm_crc32cd(reg, load_u64_le(p));
+        reg = __crc32cd(reg, load_u64_le(p));
         p += 8;
         left -= 8;
     }
     if (left >= 4) {
-        reg = __builtin_arm_crc32cw(reg, load_u32_le(p));
+        reg = __crc32cw(reg, load_u32_le(p));
         p += 4;
         left -= 4;
     }
     if (left >= 2) {
-        reg = __builtin_arm_crc32ch(reg, load_u16_le(p));
+        reg = __crc32ch(reg, load_u16_le(p));
         p += 2;
         left -= 2;
     }
     if (left >= 1) {
-        reg = __builtin_arm_crc32cb(reg, *p);
+        reg = __crc32cb(reg, *p);
     }
 #else  // SS_CRC32C_HW_X86
     while (left >= 8) {
