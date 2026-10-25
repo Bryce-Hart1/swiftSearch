@@ -3,13 +3,14 @@
  * The on-disk record format: one Envelope is one record.
  *
  * Layout (all integers fixed-width little-endian; see bytes.hpp for why):
+ * @attention current layout of record
  *
  *   off  size  field
  *     0     4  magic         0x1A525353 -> on disk: 53 53 52 1A  ('S' 'S' 'R' 0x1A)
  *     4     1  version       RECORD_VERSION
  *     5     1  compression   Compression; unknown value is rejected
  *     6     1  flags         bit0 Tombstone, bit1 Box, bit2 Manifest
- *     7     1  reserved      must be 0
+ *     7     1  var_type      VAR_TYPE; unknown value is rejected
  *     8     4  key_len
  *    12     8  payload_len
  *    20     8  timestamp_ns  int64, ns since the Unix epoch
@@ -40,6 +41,14 @@
  *    truth. The trailing 0x1A is the PNG/CP-M end-of-file byte, so a segment
  *    opened in text mode or `cat`ed to a terminal gives itself away immediately.
  *
+ * 4. Offset 7 holds var_type instead of a reserved byte. A reader has to be able
+ *    to tell a client what kind of value it is handing back, and a blob of JPEG
+ *    bytes does not say so anywhere. The reserved byte was exactly the right
+ *    size and already inside the header CRC's coverage, so this cost no bytes
+ *    and the header stayed 32. The "must be 0" check it replaced is not lost:
+ *    an unknown var_type is refused the same way an unknown compression id is,
+ *    which is the stronger check of the two because it also carries meaning.
+ *
  * ORDERING: timestamp_ns is metadata and NEVER an ordering key. "The last record
  * for a key wins" is resolved by replay order -- segment id, then byte offset --
  * because std::chrono::system_clock is not monotonic and NTP steps it backwards.
@@ -62,6 +71,7 @@
 #include <version>
 
 #include "bytes.hpp"
+#include "var_type.hpp"
 
 static_assert(__cpp_lib_expected >= 202211L,
               "swiftSearch needs std::expected (C++23): libc++ 16+ / Apple clang 15+.");
@@ -110,7 +120,7 @@ enum class DecodeStatus : std::uint8_t {
     HeaderCrcMismatch,    // bit rot in the header; EVERY length field is untrustworthy
     BodyCrcMismatch,      // header sound, key/payload rotten -> report THIS key damaged
     BadVersion,           // intact header, a version this build does not implement
-    BadReserved,          // intact header, reserved byte non-zero
+    BadVarType,           // intact header, a value type this build does not know
     BadFlags,             // intact header, unknown critical bit or illegal combination
     BadCompression,       // intact header, unknown compression id
     LengthOverflow,       // length past its cap, or the total wraps size_t
@@ -140,7 +150,7 @@ constexpr bool isBitRot(DecodeStatus s) noexcept {
 constexpr bool isPolicy(DecodeStatus s) noexcept {
     switch (s) {
         case DecodeStatus::BadVersion:
-        case DecodeStatus::BadReserved:
+        case DecodeStatus::BadVarType:
         case DecodeStatus::BadFlags:
         case DecodeStatus::BadCompression:
         case DecodeStatus::LengthOverflow:
@@ -159,6 +169,7 @@ struct RecordHeader {
     std::uint8_t version = RECORD_VERSION;
     Compression compression = Compression::None;
     std::uint8_t flags = 0;
+    VAR_TYPE var_type = VAR_TYPE::UNSET;
     std::uint32_t key_len = 0;
     std::uint64_t payload_len = 0;
     std::int64_t timestamp_ns = 0;
@@ -184,15 +195,22 @@ class Envelope {
 public:
     Envelope() = default;
 
-    static Envelope value(std::string key, Bytes payload, std::int64_t timestamp_ns);
-    static Envelope value(std::string key, Bytes payload);
+    /// var_type describes the payload, so only a plain value carries one. The
+    /// default is BIN: raw bytes of unstated kind.
+    static Envelope value(std::string key, Bytes payload, std::int64_t timestamp_ns,
+                          VAR_TYPE var_type = VAR_TYPE::BIN);
+    static Envelope value(std::string key, Bytes payload, VAR_TYPE var_type = VAR_TYPE::BIN);
 
-    /// Delete marker. The payload is always empty, per section 6 of the notes.
+    /// Delete marker. The payload is always empty, per section 6 of the notes,
+    /// so var_type is UNSET -- the Tombstone bit already says what the payload
+    /// is, and a type byte would be a second answer to a settled question.
     static Envelope tombstone(std::string key, std::int64_t timestamp_ns);
     static Envelope tombstone(std::string key);
 
     /// A container marker. `meta` is the box's OWN metadata, never a child
     /// listing -- membership comes from a prefix scan of the index. See box_meta.
+    /// var_type is UNSET for the same reason as a tombstone's: the Box bit
+    /// already determines that the payload is a BoxMeta.
     static Envelope box(std::string key, Bytes meta, std::int64_t timestamp_ns);
     static Envelope box(std::string key, Bytes meta);
 

@@ -10,6 +10,7 @@ namespace swiftsearch {
 namespace {
 
 // ---------------------------------------------------------------------------
+/**  @attention                             */
 // The layout lives here, exactly once, in one translation unit.
 //
 // This table is the mechanism that designs out the bug the old
@@ -30,7 +31,7 @@ inline constexpr Field F_MAGIC{0, 4};
 inline constexpr Field F_VERSION{4, 1};
 inline constexpr Field F_COMPRESSION{5, 1};
 inline constexpr Field F_FLAGS{6, 1};
-inline constexpr Field F_RESERVED{7, 1};
+inline constexpr Field F_VAR_TYPE{7, 1};
 inline constexpr Field F_KEY_LEN{8, 4};
 inline constexpr Field F_PAYLOAD_LEN{12, 8};
 inline constexpr Field F_TIMESTAMP{20, 8};
@@ -41,8 +42,8 @@ static_assert(F_MAGIC.off == 0);
 static_assert(F_MAGIC.off + F_MAGIC.len == F_VERSION.off);
 static_assert(F_VERSION.off + F_VERSION.len == F_COMPRESSION.off);
 static_assert(F_COMPRESSION.off + F_COMPRESSION.len == F_FLAGS.off);
-static_assert(F_FLAGS.off + F_FLAGS.len == F_RESERVED.off);
-static_assert(F_RESERVED.off + F_RESERVED.len == F_KEY_LEN.off);
+static_assert(F_FLAGS.off + F_FLAGS.len == F_VAR_TYPE.off);
+static_assert(F_VAR_TYPE.off + F_VAR_TYPE.len == F_KEY_LEN.off);
 static_assert(F_KEY_LEN.off + F_KEY_LEN.len == F_PAYLOAD_LEN.off);
 static_assert(F_PAYLOAD_LEN.off + F_PAYLOAD_LEN.len == F_TIMESTAMP.off);
 static_assert(F_TIMESTAMP.off + F_TIMESTAMP.len == F_HEADER_CRC.off);
@@ -91,6 +92,7 @@ std::expected<RecordHeader, DecodeError> parseHeader(
     h.version = p[F_VERSION.off];
     h.compression = static_cast<Compression>(p[F_COMPRESSION.off]);
     h.flags = p[F_FLAGS.off];
+    h.var_type = static_cast<VAR_TYPE>(p[F_VAR_TYPE.off]);
     h.key_len = load_u32_le(p + F_KEY_LEN.off);
     h.payload_len = load_u64_le(p + F_PAYLOAD_LEN.off);
     h.timestamp_ns = load_i64_le(p + F_TIMESTAMP.off);
@@ -99,8 +101,8 @@ std::expected<RecordHeader, DecodeError> parseHeader(
     if (h.version != RECORD_VERSION) {
         return err(DecodeStatus::BadVersion, F_VERSION.off);
     }
-    if (p[F_RESERVED.off] != 0) {
-        return err(DecodeStatus::BadReserved, F_RESERVED.off);
+    if (!is_known_var_type(p[F_VAR_TYPE.off])) {
+        return err(DecodeStatus::BadVarType, F_VAR_TYPE.off);
     }
     const std::uint8_t criticalBits = h.flags & FLAG_CRITICAL_MASK;
     if ((criticalBits & ~KNOWN_CRITICAL_FLAGS) != 0) {
@@ -143,7 +145,7 @@ std::string_view describe(DecodeStatus s) noexcept {
         case DecodeStatus::HeaderCrcMismatch: return "header checksum mismatch (bit rot)";
         case DecodeStatus::BodyCrcMismatch: return "body checksum mismatch (bit rot)";
         case DecodeStatus::BadVersion: return "unsupported format version";
-        case DecodeStatus::BadReserved: return "reserved byte not zero";
+        case DecodeStatus::BadVarType: return "unknown value type";
         case DecodeStatus::BadFlags: return "unknown or illegal flag combination";
         case DecodeStatus::BadCompression: return "unsupported compression";
         case DecodeStatus::LengthOverflow: return "length past its cap";
@@ -168,21 +170,24 @@ Envelope Envelope::fromParts(RecordHeader header, std::string key, Bytes payload
     return e;
 }
 
-Envelope Envelope::value(std::string key, Bytes payload, std::int64_t timestamp_ns) {
+Envelope Envelope::value(std::string key, Bytes payload, std::int64_t timestamp_ns,
+                         VAR_TYPE var_type) {
     RecordHeader h{};
     h.flags = 0;
+    h.var_type = var_type;
     h.key_len = static_cast<std::uint32_t>(key.size());
     h.payload_len = payload.size();
     h.timestamp_ns = timestamp_ns;
     return fromParts(h, std::move(key), std::move(payload));
 }
 
-Envelope Envelope::value(std::string key, Bytes payload) {
-    return value(std::move(key), std::move(payload), nowNanos());
+Envelope Envelope::value(std::string key, Bytes payload, VAR_TYPE var_type) {
+    return value(std::move(key), std::move(payload), nowNanos(), var_type);
 }
 
 Envelope Envelope::tombstone(std::string key, std::int64_t timestamp_ns) {
     RecordHeader h{};
+    // var_type stays UNSET: the Tombstone bit already says the payload is empty.
     h.flags = static_cast<std::uint8_t>(Flag::Tombstone);
     h.key_len = static_cast<std::uint32_t>(key.size());
     h.payload_len = 0;
@@ -196,6 +201,7 @@ Envelope Envelope::tombstone(std::string key) {
 
 Envelope Envelope::box(std::string key, Bytes meta, std::int64_t timestamp_ns) {
     RecordHeader h{};
+    // var_type stays UNSET: the Box bit already says the payload is a BoxMeta.
     h.flags = static_cast<std::uint8_t>(Flag::Box);
     h.key_len = static_cast<std::uint32_t>(key.size());
     h.payload_len = meta.size();
@@ -233,7 +239,7 @@ void Envelope::encodeTo(Bytes& out) const {
     h[F_VERSION.off] = RECORD_VERSION;
     h[F_COMPRESSION.off] = static_cast<std::uint8_t>(_header.compression);
     h[F_FLAGS.off] = _header.flags;
-    h[F_RESERVED.off] = 0;
+    h[F_VAR_TYPE.off] = static_cast<std::uint8_t>(_header.var_type);
     store_u32_le(h + F_KEY_LEN.off, static_cast<std::uint32_t>(_key.size()));
     store_u64_le(h + F_PAYLOAD_LEN.off, _payload.size());
     store_i64_le(h + F_TIMESTAMP.off, _header.timestamp_ns);

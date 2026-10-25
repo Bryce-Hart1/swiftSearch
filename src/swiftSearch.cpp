@@ -114,24 +114,27 @@ class SwiftSearch{
 
     /* BEGIN PUBLIC METHODS ----------------------------------------------------------- */
 
-    std::optional<swiftsearch::Bytes> get(const std::string_view& item){
+    std::optional<swiftsearch::Bytes> Get(const std::string_view& item){
         return std::nullopt;
     }
 
-    Error put(){
+    Error Put(){
         return BAD("file failed to store");
     }
+
+    Error Delete(){
+        return GOOD;
+    }
+
+
+    Error scaleDownCpu(const std::size_t& hi, const std::size_t& low){
+        if(hi < low || hi > 100 || low < 0){
+            return BAD("values for scaling are out of range");
+        }
+
+        return GOOD;
+    }
     
-
-
-
-
-    
-
-
-
-
-
 
 
 };

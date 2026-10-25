@@ -12,6 +12,8 @@
  */
 #pragma once
 
+#include "var_type.hpp"
+
 #include "bstd/bstd.hpp"
 #include "bstd/store/log.hpp"
 #include <iostream>
@@ -22,7 +24,7 @@
 
 
 
-
+namespace parse{
 
 enum class OPERATION_TYPE{
     UNSET,   //so a malformed command cannot dispatch on an indeterminate value
@@ -33,50 +35,17 @@ enum class OPERATION_TYPE{
     CHAR_FREQ,
     WORD_FREQ,
     FIND_ALL,
+
 };
 
 
-enum class VAR_TYPE{
-    CHAR, // 1 byte
-    INT, //4 bytes
-    BIG_INT, // 8 bytes
-    FLOAT, // 4 bytes
-    BIG_FLOAT, //8 bytes
-    IMG, //vary
-    BIN, //vary
+inline OPERATION_TYPE operationTypeOfParse = OPERATION_TYPE::UNSET; //global indicator for operation to be done on files
 };
-
-inline OPERATION_TYPE operationTypeOfParse = OPERATION_TYPE::UNSET; //global indicator for operatation to be done on files
-inline std::mutex printMutex; //the global mutex for all print functions to insure synced printing
-
-inline std::string LOOK_FOR_WORD;
-
-//converts string passed to lowercase
-inline std::string toLowerCase(std::string str){
-    for(char& c : str){
-        if(c >= 'A' && c <= 'Z'){
-            c = static_cast<char>(c + 32);
-        }
-    }
-    return str;
-}
-
-//checks if string provided has a number inside
-inline bool isNumber(const std::string& word){
-    for(char c : word){
-        if(c >= '0' && c <= '9'){
-            return true;
-        }
-    }
-    return false;
-}
-
-
-
 
 namespace print{
 
 inline bstd::store::Logger swiftSearch_logbook{"swiftSearchLogs", true, true};
+inline std::mutex printMutex; //the global mutex for all print functions to insure synced printing
 
 inline void Logo(){
     using namespace std;
