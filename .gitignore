@@ -1,0 +1,25 @@
+# Build output
+build/
+build-*/
+
+# Generated test tree (harness, corpus, golden files)
+tests/
+
+# Program output files
+swiftSearchLogs
+Words.txt
+SortedList.txt
+ReverseSortedList.txt
+ListedNumbers.txt
+
+# Editor / OS
+.vscode/
+.DS_Store
+
+# New stuff
+CLI.md
+docs
+
+#cache
+.cache
+.cache/clangd/index
