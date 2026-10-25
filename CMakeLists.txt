@@ -44,6 +44,7 @@ add_library(swiftSearch_core OBJECT
     src/http/json_write.cpp
     src/http/parse.cpp
     src/http/message.cpp
+    src/http/conditional.cpp
     src/http/routes.cpp
     src/http/conn.cpp
     src/http/server.cpp
