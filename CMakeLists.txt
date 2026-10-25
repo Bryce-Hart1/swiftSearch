@@ -39,6 +39,14 @@ add_library(swiftSearch_core OBJECT
     src/sha256.cpp
     src/record.cpp
     src/box_meta.cpp
+    src/http/url.cpp
+    src/http/mime.cpp
+    src/http/json_write.cpp
+    src/http/parse.cpp
+    src/http/message.cpp
+    src/http/routes.cpp
+    src/http/conn.cpp
+    src/http/server.cpp
 )
 target_include_directories(swiftSearch_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(swiftSearch_core PUBLIC Threads::Threads PRIVATE swiftSearch_warnings)
