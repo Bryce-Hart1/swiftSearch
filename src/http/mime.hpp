@@ -24,11 +24,16 @@
  * X-Content-Type-Options: nosniff, because a conservative Content-Type is worth
  * nothing if the browser is free to guess a different one.
  *
- * TODO, and it is a real gap rather than an oversight: VAR_TYPE has no VIDEO
- * value, so a video stores as BIN and is served as application/octet-stream,
- * which no browser will play inline. Appending VIDEO to VAR_TYPE is the fix and
- * is cheap -- the byte has 247 values spare -- but it is a format decision, not
- * one for this file to make quietly.
+ * VIDEO is a real VAR_TYPE value (appended as 9), so a video is served with a
+ * container type a browser will play rather than application/octet-stream.
+ *
+ * A playable Content-Type is necessary but not sufficient for video in a
+ * browser: seeking needs HTTP range requests, and Safari in particular may
+ * decline to start playback at all without Accept-Ranges. Those are now built
+ * (src/http/conditional.*), so a video both plays and scrubs. What is still
+ * ahead is making a range read CHEAP -- today the slice is cut from a payload
+ * the store already returned whole, so seeking into a 60 MB video still reads
+ * 60 MB. That is the chunk-and-manifest work in section 10 of the design notes.
  */
 
 #include <string>

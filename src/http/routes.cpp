@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "conditional.hpp"
 #include "json_write.hpp"
 #include "mime.hpp"
 #include "record.hpp"
@@ -63,14 +64,84 @@ Response getBlob(const Request& req, const StoreBinding& store, std::string_view
         return Response::error(statusFor(got.error()), describe(got.error()));
     }
 
+    // HEAD keeps every header, including Content-Length, and drops only the
+    // bytes. That is what makes `curl -I` a usable way to inspect a blob, and
+    // it applies to a 206 just as much as to a 200.
+    const bool headOnly = (req.method == Method::Head);
+    const std::uint64_t size = got->bytes.size();
+    const std::string etag = got->digest ? etagOf(*got->digest) : std::string{};
+
+    // On every answer below -- 200, 206, 304 and 416 alike -- because a client
+    // needs the validator and the range capability whichever one it got.
+    const auto addValidators = [&etag](Response& out) {
+        out.set("Accept-Ranges", "bytes");
+        if (!etag.empty()) out.set("ETag", etag);
+        // Deliberately NOT `immutable` or a long max-age, which is where
+        // section 11 of the design notes is half right. "Blobs are immutable,
+        // so cache aggressively" is true of a HASH-addressed URL and false of
+        // this one: a PUT replaces what a key points at, so a cached copy can
+        // absolutely go stale. `no-cache` means store it but revalidate, and
+        // the ETag is what makes that revalidation cost a bodyless 304.
+        out.set("Cache-Control", "no-cache");
+    };
+
+    // 1. The conditional check comes FIRST and wins: a client that already
+    //    holds these bytes has no use for a slice of them.
+    if (!etag.empty()) {
+        if (const auto inm = req.header("if-none-match")) {
+            if (ifNoneMatchMatches(*inm, etag)) {
+                Response nm = Response::empty(Status::NotModified);
+                addValidators(nm);
+                // No Content-Type and no body: a 304 says "what you have is
+                // still good", so repeating the representation's own headers
+                // would be noise the client already has.
+                return nm;
+            }
+        }
+    }
+
     Response r = Response::empty(Status::Ok);
     r.set("Content-Type", std::string(contentTypeFor(got->var_type, key)));
     r.set(std::string(H_TYPE), std::string(var_type_name(got->var_type)));
     putHashHeader(r, got->digest);
+    addValidators(r);
+
+    // 2. If-Range gates the Range, then the Range itself.
+    if (const auto rangeHeader = req.header("range")) {
+        bool honour = true;
+        if (const auto ifRange = req.header("if-range")) {
+            // "Send me the rest of what I was downloading, but only if it has
+            // not changed." A mismatch means the whole representation, never a
+            // slice of different content spliced onto the client's partial file.
+            honour = !etag.empty() && ifRangeMatches(*ifRange, etag);
+        }
+        if (honour) {
+            const RangeResult rr = parseRange(*rangeHeader, size);
+            if (rr.status == RangeStatus::Unsatisfiable) {
+                Response e = Response::error(Status::RangeNotSatisfiable,
+                                             describe(RangeStatus::Unsatisfiable));
+                addValidators(e);
+                // The size is the point of this header: it tells the client
+                // what it should have asked for.
+                e.set("Content-Range", contentRangeUnsatisfiable(size));
+                return e;
+            }
+            if (rr.status == RangeStatus::Ok) {
+                r.status = Status::PartialContent;
+                r.set("Content-Range", contentRange(rr.range, size));
+                const auto begin = got->bytes.begin();
+                r.body.assign(begin + static_cast<std::ptrdiff_t>(rr.range.first),
+                              begin + static_cast<std::ptrdiff_t>(rr.range.last) + 1);
+                r.omitBody = headOnly;
+                return r;
+            }
+            // Ignored: a malformed or multi-range header falls through to the
+            // full 200, which is what RFC 9110 requires.
+        }
+    }
+
     r.body = std::move(got->bytes);
-    // HEAD keeps every header, including Content-Length, and drops only the
-    // bytes. That is what makes `curl -I` a usable way to inspect a blob.
-    r.omitBody = (req.method == Method::Head);
+    r.omitBody = headOnly;
     return r;
 }
 

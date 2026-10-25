@@ -48,10 +48,15 @@ enum class VAR_TYPE : std::uint8_t {
     IMG       = 6,  // varies
     BIN       = 7,  // varies
     STR       = 8,  // varies
+    // Appended, so it sits at the end of the list rather than next to IMG
+    // where it would read better. Text order matches numeric order here on
+    // purpose: for a format header that is one less thing to get wrong when
+    // reading a hex dump, and the values are what land on disk.
+    VIDEO     = 9,  // varies
 };
 
 /// The largest value this build knows. Appending a type means bumping this.
-inline constexpr std::uint8_t VAR_TYPE_MAX = static_cast<std::uint8_t>(VAR_TYPE::STR);
+inline constexpr std::uint8_t VAR_TYPE_MAX = static_cast<std::uint8_t>(VAR_TYPE::VIDEO);
 
 /// True when `v` names a type this build understands. The record decoder uses
 /// this the same way it uses knownCompression: an intact header naming an
@@ -73,6 +78,7 @@ inline constexpr std::string_view var_type_name(VAR_TYPE t) noexcept {
         case VAR_TYPE::IMG:       return "img";
         case VAR_TYPE::BIN:       return "bin";
         case VAR_TYPE::STR:       return "str";
+        case VAR_TYPE::VIDEO:     return "video";
     }
     return "unset";
 }

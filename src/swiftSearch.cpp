@@ -118,11 +118,11 @@ class SwiftSearch{
         return std::nullopt;
     }
 
-    Error Put(){
+    Error Put(const std::string& name){
         return BAD("file failed to store");
     }
 
-    Error Delete(){
+    Error Delete(const std::string_view& item){
         return GOOD;
     }
 

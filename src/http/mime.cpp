@@ -25,6 +25,21 @@ constexpr Entry IMAGE_TYPES[] = {
     {"heic", "image/heic"}, {"heif", "image/heif"},
 };
 
+// Container formats, all inert -- a video container cannot carry script the way
+// SVG can, so there is no equivalent of the refusals above.
+//
+// ".ts" is MPEG transport stream here, not TypeScript. That ambiguity resolves
+// itself: the extension is only ever consulted WITHIN the class the record
+// already declared, so a .ts under VIDEO is a video and a .ts under STR is not
+// reached by this table at all. That is the whole reason the type comes from two
+// sources instead of from the filename alone.
+constexpr Entry VIDEO_TYPES[] = {
+    {"mp4", "video/mp4"},        {"m4v", "video/x-m4v"},
+    {"webm", "video/webm"},      {"mov", "video/quicktime"},
+    {"mkv", "video/x-matroska"}, {"ogv", "video/ogg"},
+    {"avi", "video/x-msvideo"},  {"ts", "video/mp2t"},
+};
+
 // Non-executable text types only. html, htm, xhtml, xml and svg are absent on
 // purpose and fall through to text/plain.
 constexpr Entry TEXT_TYPES[] = {
@@ -49,6 +64,10 @@ bool isKnownImageExt(std::string_view ext) {
 
 bool isKnownTextExt(std::string_view ext) {
     return lookup(TEXT_TYPES, std::size(TEXT_TYPES), ext, {}) != std::string_view{};
+}
+
+bool isKnownVideoExt(std::string_view ext) {
+    return lookup(VIDEO_TYPES, std::size(VIDEO_TYPES), ext, {}) != std::string_view{};
 }
 
 /// The media type with any parameters and surrounding space removed, lowercased:
@@ -87,6 +106,9 @@ std::string_view contentTypeFor(VAR_TYPE t, std::string_view key) {
         case VAR_TYPE::STR:
             return lookup(TEXT_TYPES, std::size(TEXT_TYPES), extensionOf(key),
                           PLAIN_TEXT);
+        case VAR_TYPE::VIDEO:
+            return lookup(VIDEO_TYPES, std::size(VIDEO_TYPES), extensionOf(key),
+                          OCTET_STREAM);
         // Scalars are stored as their raw little-endian bytes, not as text, so
         // octet-stream is the honest answer rather than a lazy default.
         case VAR_TYPE::CHAR:
@@ -105,11 +127,13 @@ VAR_TYPE inferVarType(std::string_view contentType, std::string_view key) {
     const std::string ct = bareType(contentType);
     // The declared type leads, because the client knows what it sent.
     if (ct.starts_with("image/")) return VAR_TYPE::IMG;
+    if (ct.starts_with("video/")) return VAR_TYPE::VIDEO;
     if (ct.starts_with("text/") || ct == "application/json") return VAR_TYPE::STR;
     // Then the extension, for a client that sent nothing useful. curl sends
     // application/x-www-form-urlencoded by default, which says nothing.
     const std::string ext = extensionOf(key);
     if (isKnownImageExt(ext)) return VAR_TYPE::IMG;
+    if (isKnownVideoExt(ext)) return VAR_TYPE::VIDEO;
     if (isKnownTextExt(ext)) return VAR_TYPE::STR;
     return VAR_TYPE::BIN;
 }
