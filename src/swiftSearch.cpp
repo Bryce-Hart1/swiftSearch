@@ -1,62 +1,219 @@
-#include "bstd/bit/bitBuffer.hpp"
-#include "bstd/bit/writeBin.hpp"
-#include "bstd/data_structure/threadsafe/tsVector.hpp"
 #include "bytes.hpp"
+#include "find.hpp"
+#include "record.hpp"
+#include "threading.hpp"
+#include <algorithm>
+#include <cerrno>
+#include <charconv>
+#include <cstdint>
+#include <cstdio>
+#include <deque>
+#include <exception>
+#include <expected>
+#include <fcntl.h>
 #include <filesystem>
-#include <fstream>
+#include <future>
+#include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
-#include <unordered_map>
-#include <variant>
+#include <span>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <sys/stat.h>
+#include <system_error>
+#include <unistd.h>
+#include <vector>
 
 
 
 
+/**
+ * SwiftSearch: an append-only, crash-safe key/value store.
+ *
+ * Every Put/Delete appends one record (record.hpp) to the newest segment file
+ * and fsyncs it BEFORE the call returns, then updates the in-memory LookupTable
+ * (find.hpp). The table is never persisted: on startup the segments are replayed
+ * in (segment id, offset) order and the last record for a key wins.
+ *
+ * Writers are serialized by _write_mtx, so the order records land on disk is the
+ * order the table sees them, which is what makes replay agree with the live table.
+ * Readers never take it.
+ */
 class SwiftSearch{
-    private:
-    class LockableFile{
-        
-        private:
-        
-        std::shared_mutex _mtx;
-        std::fstream _file;
-        std::string _name_of_write_space;
-        public:
-        //assumes file has been opened
-        void write(const u_int8_t& b){
-            std::unique_lock<std::shared_mutex> lock(this->_mtx);
-            bstd::bit::writeBinary(_file, b);
-        }
-        //assumes file has been opened
-        std::optional<bstd::bit::BitBuffer> read(std::istream &in, const std::size_t amount){
-            std::unique_lock<std::shared_mutex> lock(this->_mtx);
-            return bstd::bit::readBinary(in, amount);
-        }
-        LockableFile(const std::string& name) : _name_of_write_space(name){
-
-        };
-
-
-    };
-
-
-    
-
-    template<typename T>
-    using tsVec = bstd::ds::ts::vec<T>;
+/** @attention all usings                        */
     using fsPath = std::filesystem::path;
     using Error = std::optional<std::string>;
     static constexpr std::nullopt_t GOOD = std::nullopt;
     static constexpr std::string BAD(const std::string& mes){
         return mes;
     }
-    private:
-    std::vector<LockableFile> _files;
-    std::unordered_map<std::string, std::size_t> _table_lookup;
-    fsPath _store_path;
 
-    fsPath createDatabaseFolder(const fsPath& destination){
+    static constexpr std::uint64_t DEFAULT_SEGMENT_LIMIT = 256ull * 1024ull * 1024ull;
+    static constexpr std::size_t DEFAULT_CACHE_BUDGET = 64ull * 1024ull * 1024ull;
+
+
+    private:
+
+    /**
+     * One segment file. Reference counted by the SwiftSearch that owns it, so a
+     * reader that copied the pointer keeps the descriptor open for as long as it
+     * is reading, whatever happens to the segment table meanwhile.
+     *
+     * Reads use pread, which needs no lock and may run beside an append: a reader
+     * only asks for offsets the table already published, and the table is only
+     * updated after the append (and its fsync) finished.
+     */
+    class LockableFile{
+
+        private:
+        int _fd = -1;
+        std::uint32_t _id;
+        fsPath _path;
+        mutable std::mutex _mtx; //guards _size and serializes appenders
+        std::uint64_t _size = 0; //next write position == bytes that are valid
+
+        //push the file to stable storage. fsync alone does not flush the drive's cache on macOS
+        bool flush() const{
+#ifdef F_FULLFSYNC
+            if(::fcntl(_fd, F_FULLFSYNC) == 0){
+                return true;
+            }
+#endif
+            return ::fsync(_fd) == 0;
+        }
+
+        public:
+        LockableFile(const fsPath& path, const std::uint32_t id) : _id(id), _path(path){
+            _fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+            if(_fd < 0){
+                throw std::system_error(errno, std::generic_category(), "open " + path.string());
+            }
+            struct stat st{};
+            if(::fstat(_fd, &st) != 0){
+                const int e = errno;
+                ::close(_fd);
+                throw std::system_error(e, std::generic_category(), "stat " + path.string());
+            }
+            _size = static_cast<std::uint64_t>(st.st_size);
+        }
+
+        ~LockableFile(){
+            if(_fd >= 0){
+                ::close(_fd);
+            }
+        }
+
+        LockableFile(const LockableFile&) = delete;
+        LockableFile& operator=(const LockableFile&) = delete;
+
+        std::uint32_t id() const noexcept{
+            return _id;
+        }
+
+        std::uint64_t size() const{
+            std::lock_guard<std::mutex> lock(_mtx);
+            return _size;
+        }
+
+        /**
+         * Writes bytes at the end and fsyncs. @return the offset they landed at.
+         * On failure the file is cut back to where it was, so a half written
+         * record is not left behind for the next append to trip over.
+         */
+        std::expected<std::uint64_t, std::string> append(std::span<const std::uint8_t> bytes){
+            std::lock_guard<std::mutex> lock(_mtx);
+            const std::uint64_t at = _size;
+
+            std::size_t done = 0;
+            while(done < bytes.size()){
+                const ssize_t n = ::pwrite(_fd, bytes.data() + done, bytes.size() - done,
+                                           static_cast<off_t>(at + done));
+                if(n < 0){
+                    if(errno == EINTR){
+                        continue;
+                    }
+                    const std::string why = std::generic_category().message(errno);
+                    (void)::ftruncate(_fd, static_cast<off_t>(at));
+                    return std::unexpected("write failed: " + why);
+                }
+                done += static_cast<std::size_t>(n);
+            }
+            if(!flush()){
+                const std::string why = std::generic_category().message(errno);
+                (void)::ftruncate(_fd, static_cast<off_t>(at));
+                return std::unexpected("fsync failed: " + why);
+            }
+            _size = at + bytes.size();
+            return at;
+        }
+
+        /// @return exactly `length` bytes from `offset`, or nullopt if the file is shorter or the read fails
+        std::optional<swiftsearch::Bytes> readAt(const std::uint64_t offset, const std::uint64_t length) const{
+            constexpr std::uint64_t MAX_RECORD = swiftsearch::RECORD_OVERHEAD
+                + swiftsearch::MAX_KEY_LEN + swiftsearch::MAX_PAYLOAD_LEN;
+            if(length > MAX_RECORD){
+                return std::nullopt; //a corrupt length must not become a huge allocation
+            }
+            swiftsearch::Bytes out(static_cast<std::size_t>(length));
+            std::size_t done = 0;
+            while(done < out.size()){
+                const ssize_t n = ::pread(_fd, out.data() + done, out.size() - done,
+                                          static_cast<off_t>(offset + done));
+                if(n < 0 && errno == EINTR){
+                    continue;
+                }
+                if(n <= 0){
+                    return std::nullopt;
+                }
+                done += static_cast<std::size_t>(n);
+            }
+            return out;
+        }
+
+        /// Cut the file to newSize (drops a torn tail). @return false if it could not be done
+        bool truncate(const std::uint64_t newSize){
+            std::lock_guard<std::mutex> lock(_mtx);
+            if(::ftruncate(_fd, static_cast<off_t>(newSize)) != 0){
+                return false;
+            }
+            _size = newSize;
+            return flush();
+        }
+    };
+
+
+    private:
+    fsPath _store_path;
+    std::uint64_t _segment_limit;
+    std::size_t _cache_budget;
+
+    /** @brief SEGMENTS ---------------------------------------------- */
+    std::map<std::uint32_t, std::shared_ptr<LockableFile>> _segments; //newest = highest id
+    mutable std::shared_mutex _segments_mtx;
+
+    /** @brief LOOKUP ---------------------------------------------- */
+
+    std::mutex _write_mtx; //one writer at a time: append + table update are one step
+    swiftsearch::LookupTable _lookup;
+
+    /** @brief CACHE ---------------------------------------------- */
+    //which keys are cached in RAM, oldest first. Evicted from the front once over budget
+    std::mutex _cache_mtx;
+    std::deque<std::pair<std::string, std::size_t>> _cache_fifo;
+    std::size_t _cache_bytes = 0;
+
+    /** @brief POOL ---------------------------------------------- */
+    mutable std::shared_mutex _pool_mtx; //shared while submitting, exclusive while scaleDownCpu swaps the pool
+    std::unique_ptr<swiftsearch::AdaptiveThreadPool> _pool;
+
+    /** @brief MSC ---------------------------------------------------- */
+    std::vector<std::string> _warnings; //what replay had to cut off or skip
+
+
+    static fsPath createDatabaseFolder(const fsPath& destination){
         if (destination.empty())
             throw std::invalid_argument("createDatabaseFolder: destination path is empty");
 
@@ -76,65 +233,418 @@ class SwiftSearch{
     }
 
 
+    /** @attention Segment files ------------------------------------------------ */
+
+    private:
+
+    static std::string segmentFileName(const std::uint32_t id){
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "segment-%06u.dat", static_cast<unsigned>(id));
+        return buf;
+    }
+
+    //"segment-000012.dat" -> 12, anything else -> nullopt
+    static std::optional<std::uint32_t> parseSegmentName(const std::string& name){
+        constexpr std::string_view prefix = "segment-";
+        constexpr std::string_view suffix = ".dat";
+        if(name.size() <= prefix.size() + suffix.size()
+           || name.compare(0, prefix.size(), prefix) != 0
+           || name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0){
+            return std::nullopt;
+        }
+        const char* first = name.data() + prefix.size();
+        const char* last = name.data() + name.size() - suffix.size();
+        std::uint32_t id = 0;
+        const auto [ptr, ec] = std::from_chars(first, last, id);
+        if(ec != std::errc{} || ptr != last){
+            return std::nullopt;
+        }
+        return id;
+    }
+
+    //make the new file's directory entry durable, otherwise a crash can lose the whole file
+    void syncStoreDirectory() const{
+        const int fd = ::open(_store_path.c_str(), O_RDONLY | O_CLOEXEC);
+        if(fd >= 0){
+            (void)::fsync(fd);
+            ::close(fd);
+        }
+    }
+
+    std::shared_ptr<LockableFile> createSegment(const std::uint32_t id){
+        auto seg = std::make_shared<LockableFile>(_store_path / segmentFileName(id), id);
+        syncStoreDirectory();
+        std::unique_lock<std::shared_mutex> lock(_segments_mtx);
+        _segments.emplace(id, seg);
+        return seg;
+    }
+
+    std::shared_ptr<LockableFile> segmentById(const std::uint32_t id) const{
+        std::shared_lock<std::shared_mutex> lock(_segments_mtx);
+        const auto itr = _segments.find(id);
+        return itr == _segments.end() ? nullptr : itr->second;
+    }
+
+    //the segment the next record goes into, rolling to a new one when this record would push it past the limit.
+    //A record bigger than the limit still gets a segment to itself.
+    std::shared_ptr<LockableFile> activeSegmentFor(const std::size_t record_size){
+        std::shared_ptr<LockableFile> active;
+        {
+            std::shared_lock<std::shared_mutex> lock(_segments_mtx);
+            active = _segments.rbegin()->second;
+        }
+        const std::uint64_t used = active->size();
+        if(used > 0 && used + record_size > _segment_limit){
+            return createSegment(active->id() + 1);
+        }
+        return active;
+    }
+
+
+    /** @attention Startup replay ------------------------------------------------ */
+
+    private:
+
+    //the stop is recorded either way; only the newest segment is ever cut, since a torn tail can only be there
+    void endReplayAt(LockableFile& seg, const std::uint64_t at, const swiftsearch::DecodeStatus why, const bool is_newest){
+        std::string note = "segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
+            + ": " + std::string(swiftsearch::describe(why));
+        if(!is_newest){
+            note += " (sealed segment, left untouched)";
+        }else if(seg.truncate(at)){
+            note += " (tail truncated)";
+        }else{
+            note += " (could not truncate)";
+        }
+        _warnings.push_back(std::move(note));
+    }
+
+    //Header-only probe. Returns the record's total size once the header CRC has passed
+    //(peekHeader reports Truncated with at == HEADER_SIZE and a trustworthy `needed`
+    //when handed just the header), otherwise the error that stops the walk.
+    static std::expected<std::uint64_t, swiftsearch::DecodeError> recordSize(std::span<const std::uint8_t> head){
+        const auto parsed = swiftsearch::peekHeader(head);
+        if(parsed.has_value()){
+            return parsed->totalSize();
+        }
+        const auto& err = parsed.error();
+        if(err.status == swiftsearch::DecodeStatus::Truncated && err.at == swiftsearch::HEADER_SIZE){
+            return err.needed;
+        }
+        return std::unexpected(err);
+    }
+
+    void replaySegment(LockableFile& seg, const bool is_newest){
+        using swiftsearch::DecodeStatus;
+        const std::uint64_t end = seg.size();
+        std::uint64_t at = 0;
+
+        while(at < end){
+            const std::uint64_t remaining = end - at;
+            const auto head = seg.readAt(at, std::min<std::uint64_t>(swiftsearch::HEADER_SIZE, remaining));
+            if(!head.has_value()){
+                throw std::runtime_error("read failed in segment " + std::to_string(seg.id()));
+            }
+
+            const auto total = recordSize(*head);
+            if(!total.has_value()){
+                if(swiftsearch::isPolicy(total.error().status)){
+                    //intact bytes this build will not interpret: refuse to start rather than cut data away
+                    throw std::runtime_error("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
+                        + ": " + std::string(swiftsearch::describe(total.error().status)));
+                }
+                endReplayAt(seg, at, total.error().status, is_newest); //torn, not a record, or header rot
+                return;
+            }
+            if(*total > remaining){
+                endReplayAt(seg, at, DecodeStatus::Truncated, is_newest); //header fine, body never finished
+                return;
+            }
+
+            const auto whole = seg.readAt(at, *total);
+            if(!whole.has_value()){
+                throw std::runtime_error("read failed in segment " + std::to_string(seg.id()));
+            }
+            const auto decoded = swiftsearch::decodeRecord(*whole);
+            if(!decoded.has_value()){
+                const DecodeStatus status = decoded.error().status;
+                if(swiftsearch::isPolicy(status)){
+                    throw std::runtime_error("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
+                        + ": " + std::string(swiftsearch::describe(status)));
+                }
+                if(status == DecodeStatus::BodyCrcMismatch && !(is_newest && at + *total == end)){
+                    //the header was sound so the length is too: skip this one record and keep the rest.
+                    //The key is untrusted (only the body CRC covered it), so it is not named here.
+                    _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
+                        + ": record body is damaged, skipped");
+                    at += *total;
+                    continue;
+                }
+                endReplayAt(seg, at, status, is_newest); //includes a bad record that is the very last write
+                return;
+            }
+
+            const auto& envelope = decoded->envelope;
+            if(envelope.isTombstone()){
+                _lookup.erase(envelope.key());
+            }else if(!_lookup.putDisk(envelope.key(), swiftsearch::DiskLocation{seg.id(), at, *total})){
+                _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
+                    + ": record with an empty key, skipped");
+            }
+            at += *total;
+        }
+    }
+
+    void replay(){
+        std::map<std::uint32_t, fsPath> found;
+        for(const auto& entry : std::filesystem::directory_iterator(_store_path)){
+            if(!entry.is_regular_file()){
+                continue;
+            }
+            const auto id = parseSegmentName(entry.path().filename().string());
+            if(id.has_value()){
+                found.emplace(*id, entry.path());
+            }
+        }
+
+        if(found.empty()){
+            createSegment(0);
+        }
+        for(const auto& [id, path] : found){
+            _segments.emplace(id, std::make_shared<LockableFile>(path, id));
+        }
+
+        const std::uint32_t newest = _segments.rbegin()->first;
+        for(const auto& [id, seg] : _segments){
+            replaySegment(*seg, id == newest);
+        }
+    }
+
+
     /** @attention Private helpers --------------------------------------------- */
 
     private:
 
     Error compact(){
-       return std::nullopt; 
+       return std::nullopt;
 
     }
 
-    std::optional<std::size_t> checkIndexFor(const std::string_view& item){
-        std::string lookingFor = static_cast<std::string>(item);
-        if(_table_lookup.contains(lookingFor)){
-            return  _table_lookup.at(lookingFor);
-        }else{
+    //reads one record's value from the segment file named by where
+    std::optional<swiftsearch::Bytes> find_and_read(const std::string& key, const swiftsearch::DiskLocation& where){
+        const auto seg = segmentById(where.segment);
+        if(seg == nullptr){
+            return std::nullopt;
+        }
+        const auto raw = seg->readAt(where.offset, where.length);
+        if(!raw.has_value()){
+            return std::nullopt;
+        }
+        const auto decoded = swiftsearch::decodeRecord(*raw); //verifies both CRCs
+        if(!decoded.has_value()){
+            return std::nullopt;
+        }
+        const auto& envelope = decoded->envelope;
+        if(envelope.isTombstone() || envelope.key() != key){
+            return std::nullopt; //the table pointed at the wrong record
+        }
+        const auto payload = envelope.payload();
+        return swiftsearch::Bytes(payload.begin(), payload.end());
+    }
+
+
+    /**
+     * Call this only AFTER the record is appended to a segment and fsync'd.
+     * The table lives in RAM and is rebuilt from the segments on startup, so an
+     * entry that points at bytes which never reached disk is a lie that a crash
+     * exposes. See the CRASH BEHAVIOR note in find.hpp.
+     */
+    Error putInLookupTable(const std::string& name, const swiftsearch::DiskLocation& where){
+        try{
+            if(!_lookup.putDisk(name, where)){
+                return BAD("empty keys cannot be stored");
+            }
+        }catch(const std::exception& e){
+            return BAD("error entering in lookup table");
+        }
+        return GOOD;
+    }
+
+
+
+    std::optional<swiftsearch::Entry> location_in_lookup(const std::string_view& looking){
+        return _lookup.lookup(looking);
+    }
+
+
+    //note a key was just cached and push the oldest cached keys out once over budget
+    void rememberCached(const std::string& key, const std::size_t bytes){
+        std::vector<std::string> victims;
+        {
+            std::lock_guard<std::mutex> lock(_cache_mtx);
+            _cache_fifo.emplace_back(key, bytes);
+            _cache_bytes += bytes;
+            while(_cache_bytes > _cache_budget && _cache_fifo.size() > 1){
+                _cache_bytes -= _cache_fifo.front().second;
+                victims.push_back(std::move(_cache_fifo.front().first));
+                _cache_fifo.pop_front();
+            }
+        }
+        for(const auto& victim : victims){
+            _lookup.evict(victim);
+        }
+    }
+
+
+    std::optional<swiftsearch::Bytes> thread_gets(const std::string& item){
+        const auto entry = location_in_lookup(item);
+        if(!entry.has_value()){
+            return std::nullopt;
+        }
+        if(entry->inMemory()){
+            return *entry->memory; //copy out; the shared buffer stays in the table
+        }
+        if(!entry->onDisk()){
             return std::nullopt;
         }
 
+        //on disk only. a miss here means the key is known but the read failed
+        auto bytes = find_and_read(item, *entry->disk);
+        if(bytes.has_value() && bytes->size() <= _cache_budget){
+            //refused (harmlessly) if the key was overwritten or relocated meanwhile
+            if(_lookup.cache(item, *entry->disk, std::make_shared<const swiftsearch::Bytes>(*bytes))){
+                rememberCached(item, bytes->size());
+            }
+        }
+        return bytes;
     }
 
+
+    //caller holds _write_mtx. Appends the record durably and returns where it landed
+    std::expected<swiftsearch::DiskLocation, std::string> appendLocked(const swiftsearch::Bytes& record){
+        const auto seg = activeSegmentFor(record.size());
+        const auto at = seg->append(record);
+        if(!at.has_value()){
+            return std::unexpected(at.error());
+        }
+        return swiftsearch::DiskLocation{seg->id(), *at, record.size()};
+    }
 
 
 
     public:
-    SwiftSearch(const fsPath& path) : _store_path(path){
-        try {
-            std::filesystem::path dbDir = createDatabaseFolder("swiftSearch/db");
-        }
-        catch (const std::filesystem::filesystem_error& e) {
-            std::cerr << e.what() << " [" << e.path1() << "]\n";
-        }
-        catch (const std::invalid_argument& e) {
-            std::cerr << e.what() << '\n';
+    /**
+     * Opens (creating if needed) the store in `path` and replays its segments.
+     * @throws if the folder cannot be made, or the segments cannot be read, or
+     * they hold records this build refuses to interpret (nothing is deleted then).
+     * Damage replay can recover from (a torn tail, a rotten record) is not an
+     * error; it is listed by Warnings().
+     */
+    explicit SwiftSearch(const fsPath& path,
+                         const std::uint64_t segment_limit = DEFAULT_SEGMENT_LIMIT,
+                         const std::size_t cache_budget = DEFAULT_CACHE_BUDGET)
+        : _store_path(createDatabaseFolder(path)),
+          _segment_limit(segment_limit),
+          _cache_budget(cache_budget),
+          _pool(std::make_unique<swiftsearch::AdaptiveThreadPool>()){
+        try{
+            replay();
+        }catch(const std::exception& e){
+            throw std::runtime_error("SwiftSearch Failed to Setup In constructor ");
         }
     }
-    
+
 
     /* BEGIN PUBLIC METHODS ----------------------------------------------------------- */
 
+    /// Runs the read on the pool and waits for it. Don't call this from inside a pool task.
     std::optional<swiftsearch::Bytes> Get(const std::string_view& item){
-        return std::nullopt;
+        std::future<std::optional<swiftsearch::Bytes>> answer;
+        {
+            std::shared_lock<std::shared_mutex> lock(_pool_mtx);
+            answer = _pool->submit([this, key = std::string(item)]{ return thread_gets(key); });
+        }
+        return answer.get();
     }
 
-    Error Put(const std::string& name){
-        return BAD("file failed to store");
+    /// Durable when this returns GOOD: the record is on disk and fsync'd.
+    Error Put(const std::string& name, const swiftsearch::Bytes& _data,
+              const VAR_TYPE type = VAR_TYPE::BIN){
+        if(!swiftsearch::keys::is_valid(name)){
+            return BAD("invalid key");
+        }
+        try{
+            const auto record = swiftsearch::Envelope::value(name, _data, type).encode();
+
+            std::lock_guard<std::mutex> lock(_write_mtx);
+            const auto where = appendLocked(record);
+            if(!where.has_value()){
+                return BAD(where.error());
+            }
+            return putInLookupTable(name, *where);
+        }catch(const std::length_error&){
+            return BAD("key or value is over the size limit");
+        }catch(const std::exception& e){
+            return BAD(std::string("file failed to store: ") + e.what());
+        }
     }
 
+    /// Deleting a key that does not exist is not an error. Durable when this returns GOOD.
     Error Delete(const std::string_view& item){
+        const std::string key(item);
+        try{
+            std::lock_guard<std::mutex> lock(_write_mtx);
+            if(!_lookup.contains(key)){
+                return GOOD;
+            }
+            //tombstone first, forget second: forgetting alone would let a restart bring the key back
+            const auto record = swiftsearch::Envelope::tombstone(key).encode();
+            const auto where = appendLocked(record);
+            if(!where.has_value()){
+                return BAD(where.error());
+            }
+            _lookup.erase(key);
+        }catch(const std::exception& e){
+            return BAD(std::string("delete failed: ") + e.what());
+        }
         return GOOD;
     }
 
 
+    /**
+     * Retunes how hard the pool works the CPU: it backs off at `hi` percent busy and
+     * ramps up again below `low`. Takes effect by replacing the pool, which finishes
+     * the reads already queued first.
+     */
     Error scaleDownCpu(const std::size_t& hi, const std::size_t& low){
-        if(hi < low || hi > 100 || low < 0){
+        if(hi <= low || hi > 100){
             return BAD("values for scaling are out of range");
         }
-
+        try{
+            swiftsearch::ThreadPoolOptions options;
+            options.highBusyPercent = static_cast<double>(hi);
+            options.lowBusyPercent = static_cast<double>(low);
+            auto fresh = std::make_unique<swiftsearch::AdaptiveThreadPool>(options);
+            {
+                std::unique_lock<std::shared_mutex> lock(_pool_mtx);
+                _pool.swap(fresh);
+            }
+            //`fresh` now holds the old pool; its destructor drains it, outside the lock
+        }catch(const std::exception& e){
+            return BAD(std::string("could not rescale: ") + e.what());
+        }
         return GOOD;
     }
-    
 
+
+    /// Number of live keys.
+    std::size_t Size() const{
+        return _lookup.size();
+    }
+
+    /// What startup replay cut off or skipped. Empty after a clean shutdown.
+    const std::vector<std::string>& Warnings() const noexcept{
+        return _warnings;
+    }
 
 };
