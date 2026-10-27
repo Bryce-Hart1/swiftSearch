@@ -27,9 +27,41 @@
 #include <span>
 #include <vector>
 
+#include "bstd/bit/bitBuffer.hpp"
+
 namespace swiftsearch {
 
-using Bytes = std::vector<std::uint8_t>;
+/**
+ * A byte string. It is a std::vector<std::uint8_t> in every respect (all of
+ * vector's constructors and members are inherited), plus a way to build one from
+ * a BitBuffer. It is a class rather than an alias only because an alias cannot
+ * take a constructor.
+ */
+class Bytes : public std::vector<std::uint8_t> {
+public:
+    using std::vector<std::uint8_t>::vector;
+
+    Bytes() = default;
+
+    /// Implicit on purpose, so a plain std::vector<std::uint8_t> still converts.
+    Bytes(std::vector<std::uint8_t> raw) : std::vector<std::uint8_t>(std::move(raw)) {}
+
+    /**
+     * The bytes of a BitBuffer.
+     *
+     * BitBuffer packs bits MSB-first (its first bit is 0x80 of byte 0), and that
+     * is exactly the layout it keeps in memory, so this is a copy of its storage
+     * and nothing is reordered. It reads rawBytes() only, not BitBuffer::from(),
+     * which is the host-byte-order path the note above rules out.
+     *
+     * LOSSY when bits.size() is not a multiple of 8: the last byte is padded with
+     * 0 bits at the low end and the bit count is NOT carried over. Bytes cannot
+     * say "5 bits", so a caller that needs the count back must store it
+     * separately (see bits.paddingBits()). An empty buffer gives an empty Bytes.
+     */
+    explicit Bytes(const bstd::bit::BitBuffer& bits)
+        : std::vector<std::uint8_t>(bits.rawBytes()) {}
+};
 
 // ---------------------------------------------------------------------------
 // Raw loads. The caller must already have checked that `p` has enough bytes;
