@@ -52,7 +52,8 @@ add_library(swiftSearch_core OBJECT
 target_include_directories(swiftSearch_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(swiftSearch_core PUBLIC Threads::Threads PRIVATE swiftSearch_warnings)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp
+    src/find.hpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE swiftSearch_core swiftSearch_warnings)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
