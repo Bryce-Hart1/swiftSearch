@@ -81,7 +81,8 @@ public:
             // rather than a shortcut: an oversized key or payload fails here
             // exactly as it would against a segment file.
             try {
-                (void)Envelope::value(key, item.bytes, item.when, t).encode();
+                //the stand-in has no start date, so the record's seconds offset is 0
+                (void)Envelope::value(key, item.bytes, 0, t).encode();
             } catch (const std::length_error&) {
                 return std::unexpected(StoreStatus::Unsupported);
             }

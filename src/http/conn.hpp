@@ -12,8 +12,8 @@
  * THE CLOCK IS A PARAMETER, never read from inside. Every entry point takes
  * `now`. That is the whole fake-clock mechanism: no clock interface, no
  * injection, no virtual call. The reactor passes steady_clock::now(); a test
- * passes whatever it likes. Envelope::value's explicit-timestamp overload
- * exists for the same reason.
+ * passes whatever it likes. Envelope::value takes its seconds offset as a
+ * parameter for the same reason.
  *
  * WANT IS A BITMASK, AND IT IS NEVER EMPTY. POLLHUP, POLLERR and POLLNVAL are
  * reported in revents whether or not they were asked for, so a state that wants

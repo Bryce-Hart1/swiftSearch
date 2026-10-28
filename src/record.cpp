@@ -2,8 +2,10 @@
 
 #include <chrono>
 #include <cstring>
+#include <optional>
 #include <stdexcept>
 
+#include "bstd/bit/bitBuffer.hpp"
 #include "crc32c.hpp"
 
 namespace swiftsearch {
@@ -34,8 +36,8 @@ inline constexpr Field F_FLAGS{6, 1};
 inline constexpr Field F_VAR_TYPE{7, 1};
 inline constexpr Field F_KEY_LEN{8, 4};
 inline constexpr Field F_PAYLOAD_LEN{12, 8};
-inline constexpr Field F_TIMESTAMP{20, 8};
-inline constexpr Field F_HEADER_CRC{28, 4};
+inline constexpr Field F_SECS_SINCE_START{20, 4};
+inline constexpr Field F_HEADER_CRC{24, 4};
 
 // Gapless, in order, and exactly HEADER_SIZE bytes.
 static_assert(F_MAGIC.off == 0);
@@ -45,13 +47,13 @@ static_assert(F_COMPRESSION.off + F_COMPRESSION.len == F_FLAGS.off);
 static_assert(F_FLAGS.off + F_FLAGS.len == F_VAR_TYPE.off);
 static_assert(F_VAR_TYPE.off + F_VAR_TYPE.len == F_KEY_LEN.off);
 static_assert(F_KEY_LEN.off + F_KEY_LEN.len == F_PAYLOAD_LEN.off);
-static_assert(F_PAYLOAD_LEN.off + F_PAYLOAD_LEN.len == F_TIMESTAMP.off);
-static_assert(F_TIMESTAMP.off + F_TIMESTAMP.len == F_HEADER_CRC.off);
+static_assert(F_PAYLOAD_LEN.off + F_PAYLOAD_LEN.len == F_SECS_SINCE_START.off);
+static_assert(F_SECS_SINCE_START.off + F_SECS_SINCE_START.len == F_HEADER_CRC.off);
 static_assert(F_HEADER_CRC.off + F_HEADER_CRC.len == HEADER_SIZE);
 
 // The header CRC covers everything before itself.
 inline constexpr std::size_t HEADER_CRC_COVERAGE = F_HEADER_CRC.off;
-static_assert(HEADER_CRC_COVERAGE == 28);
+static_assert(HEADER_CRC_COVERAGE == 24);
 
 bool knownCompression(std::uint8_t v) noexcept {
     return v == static_cast<std::uint8_t>(Compression::None);
@@ -95,7 +97,7 @@ std::expected<RecordHeader, DecodeError> parseHeader(
     h.var_type = static_cast<VAR_TYPE>(p[F_VAR_TYPE.off]);
     h.key_len = load_u32_le(p + F_KEY_LEN.off);
     h.payload_len = load_u64_le(p + F_PAYLOAD_LEN.off);
-    h.timestamp_ns = load_i64_le(p + F_TIMESTAMP.off);
+    h.secs_since_start = load_u32_le(p + F_SECS_SINCE_START.off);
 
     // 4. Policy: intact bytes this build may or may not be willing to interpret.
     if (h.version != RECORD_VERSION) {
@@ -170,47 +172,35 @@ Envelope Envelope::fromParts(RecordHeader header, std::string key, Bytes payload
     return e;
 }
 
-Envelope Envelope::value(std::string key, Bytes payload, std::int64_t timestamp_ns,
+Envelope Envelope::value(std::string key, Bytes payload, std::uint32_t secs_since_start,
                          VAR_TYPE var_type) {
     RecordHeader h{};
     h.flags = 0;
     h.var_type = var_type;
     h.key_len = static_cast<std::uint32_t>(key.size());
     h.payload_len = payload.size();
-    h.timestamp_ns = timestamp_ns;
+    h.secs_since_start = secs_since_start;
     return fromParts(h, std::move(key), std::move(payload));
 }
 
-Envelope Envelope::value(std::string key, Bytes payload, VAR_TYPE var_type) {
-    return value(std::move(key), std::move(payload), nowNanos(), var_type);
-}
-
-Envelope Envelope::tombstone(std::string key, std::int64_t timestamp_ns) {
+Envelope Envelope::tombstone(std::string key, std::uint32_t secs_since_start) {
     RecordHeader h{};
     // var_type stays UNSET: the Tombstone bit already says the payload is empty.
     h.flags = static_cast<std::uint8_t>(Flag::Tombstone);
     h.key_len = static_cast<std::uint32_t>(key.size());
     h.payload_len = 0;
-    h.timestamp_ns = timestamp_ns;
+    h.secs_since_start = secs_since_start;
     return fromParts(h, std::move(key), Bytes{});
 }
 
-Envelope Envelope::tombstone(std::string key) {
-    return tombstone(std::move(key), nowNanos());
-}
-
-Envelope Envelope::box(std::string key, Bytes meta, std::int64_t timestamp_ns) {
+Envelope Envelope::box(std::string key, Bytes meta, std::uint32_t secs_since_start) {
     RecordHeader h{};
     // var_type stays UNSET: the Box bit already says the payload is a BoxMeta.
     h.flags = static_cast<std::uint8_t>(Flag::Box);
     h.key_len = static_cast<std::uint32_t>(key.size());
     h.payload_len = meta.size();
-    h.timestamp_ns = timestamp_ns;
+    h.secs_since_start = secs_since_start;
     return fromParts(h, std::move(key), std::move(meta));
-}
-
-Envelope Envelope::box(std::string key, Bytes meta) {
-    return box(std::move(key), std::move(meta), nowNanos());
 }
 
 std::size_t Envelope::encodedSize() const noexcept {
@@ -242,7 +232,7 @@ void Envelope::encodeTo(Bytes& out) const {
     h[F_VAR_TYPE.off] = static_cast<std::uint8_t>(_header.var_type);
     store_u32_le(h + F_KEY_LEN.off, static_cast<std::uint32_t>(_key.size()));
     store_u64_le(h + F_PAYLOAD_LEN.off, _payload.size());
-    store_i64_le(h + F_TIMESTAMP.off, _header.timestamp_ns);
+    store_u32_le(h + F_SECS_SINCE_START.off, _header.secs_since_start);
     store_u32_le(h + F_HEADER_CRC.off,
                  crc32c(std::span<const std::uint8_t>{h, HEADER_CRC_COVERAGE}));
 
@@ -353,4 +343,4 @@ bool is_within(std::string_view key, std::string_view box) noexcept {
 
 }  // namespace keys
 
-}  // namespace swiftsearch
+} // namespace swiftsearch

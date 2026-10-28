@@ -13,22 +13,30 @@
  *     7     1  var_type      VAR_TYPE; unknown value is rejected
  *     8     4  key_len
  *    12     8  payload_len
- *    20     8  timestamp_ns  int64, ns since the Unix epoch
- *    28     4  header_crc    CRC32C over bytes [0, 28)
- *    32   ...  key           key_len bytes
+ *    20     4  secs_since_start  uint32, whole seconds since the store was first
+ *                                initialised (the StartDate in the store's metadata
+ *                                file). The format layer never reads a clock: the
+ *                                caller says what the offset is.
+ *    24     4  header_crc    CRC32C over bytes [0, 24)
+ *    28   ...  key           key_len bytes
  *         ...  payload       payload_len bytes
  *           4  body_crc      CRC32C over (key ++ payload)
  *
- * Overhead is 36 bytes plus the key.
+ * Overhead is 32 bytes plus the key.
+ *
+ * VERSION 2 replaced the 8 byte int64 `timestamp_ns` with the 4 byte offset
+ * above, which shrinks every record by 4 bytes and the range from "to year 2262"
+ * to "136 years from the store's first run". No version 1 data ever existed on
+ * disk, so there is no v1 decode path: a v1 header reports BadVersion.
  *
  * Three decisions worth knowing, all of which deviate from a first reading of
  * section 4 of docs/swift-search-design-notes.md:
  *
- * 1. header_crc sits at offset 28, after the timestamp, not at 20 before it.
- *    The notes' field order leaves the timestamp outside its own header's
- *    checksum. That is not cosmetic: the timestamp sits next to tombstone-versus-
- *    write bookkeeping, so an unchecksummed one is a silent-resurrection bug
- *    waiting to happen. Same 32 bytes, same fields, strictly more coverage.
+ * 1. header_crc sits after the timestamp, not before it. The notes' field order
+ *    leaves the timestamp outside its own header's checksum. That is not
+ *    cosmetic: the timestamp sits next to tombstone-versus-write bookkeeping, so
+ *    an unchecksummed one is a silent-resurrection bug waiting to happen. Same
+ *    fields, strictly more coverage.
  *
  * 2. body_crc covers the key AND the payload, not the payload alone. With the
  *    payload alone, the key bytes are protected by nothing -- header_crc covers
@@ -44,12 +52,12 @@
  * 4. Offset 7 holds var_type instead of a reserved byte. A reader has to be able
  *    to tell a client what kind of value it is handing back, and a blob of JPEG
  *    bytes does not say so anywhere. The reserved byte was exactly the right
- *    size and already inside the header CRC's coverage, so this cost no bytes
- *    and the header stayed 32. The "must be 0" check it replaced is not lost:
+ *    size and already inside the header CRC's coverage, so this cost no bytes.
+ *    The "must be 0" check it replaced is not lost:
  *    an unknown var_type is refused the same way an unknown compression id is,
  *    which is the stronger check of the two because it also carries meaning.
  *
- * ORDERING: timestamp_ns is metadata and NEVER an ordering key. "The last record
+ * ORDERING: secs_since_start is metadata and NEVER an ordering key. "The last record
  * for a key wins" is resolved by replay order -- segment id, then byte offset --
  * because std::chrono::system_clock is not monotonic and NTP steps it backwards.
  * Comparing two records' timestamps to decide which is newer is a correctness
@@ -81,11 +89,11 @@ namespace swiftsearch {
 // On disk: 53 53 52 1A. Stored through store_u32_le, so this constant is the
 // value, and the byte order is bytes.hpp's business.
 inline constexpr std::uint32_t RECORD_MAGIC = 0x1A525353u;
-inline constexpr std::uint8_t RECORD_VERSION = 1;
+inline constexpr std::uint8_t RECORD_VERSION = 2;
 
-inline constexpr std::size_t HEADER_SIZE = 32;
+inline constexpr std::size_t HEADER_SIZE = 28;
 inline constexpr std::size_t TRAILER_SIZE = 4;
-inline constexpr std::size_t RECORD_OVERHEAD = HEADER_SIZE + TRAILER_SIZE;  // 36
+inline constexpr std::size_t RECORD_OVERHEAD = HEADER_SIZE + TRAILER_SIZE;  // 32
 
 // Caps, checked before anything is reserved or copied. A corrupt length field
 // must not be able to trigger a huge allocation; bstd::store::serialize's
@@ -172,7 +180,7 @@ struct RecordHeader {
     VAR_TYPE var_type = VAR_TYPE::UNSET;
     std::uint32_t key_len = 0;
     std::uint64_t payload_len = 0;
-    std::int64_t timestamp_ns = 0;
+    std::uint32_t secs_since_start = 0;
 
     bool has(Flag f) const noexcept {
         return (flags & static_cast<std::uint8_t>(f)) != 0;
@@ -186,33 +194,35 @@ struct RecordHeader {
     }
 };
 
-/// Nanoseconds since the Unix epoch, from system_clock. Metadata only -- see the
-/// ORDERING note at the top of this file.
+/// Nanoseconds since the Unix epoch, from system_clock. NOT used by the record
+/// format any more (records carry secs_since_start); BoxMeta::created_ns still
+/// uses it.
 std::int64_t nowNanos() noexcept;
 
 /// One record, in memory.
+///
+/// Every factory takes `secs_since_start` explicitly: whole seconds since the
+/// store was first initialised. The format layer deliberately has no clock of its
+/// own, so the same inputs always encode to the same bytes.
 class Envelope {
 public:
     Envelope() = default;
 
     /// var_type describes the payload, so only a plain value carries one. The
     /// default is BIN: raw bytes of unstated kind.
-    static Envelope value(std::string key, Bytes payload, std::int64_t timestamp_ns,
+    static Envelope value(std::string key, Bytes payload, std::uint32_t secs_since_start,
                           VAR_TYPE var_type = VAR_TYPE::BIN);
-    static Envelope value(std::string key, Bytes payload, VAR_TYPE var_type = VAR_TYPE::BIN);
 
     /// Delete marker. The payload is always empty, per section 6 of the notes,
     /// so var_type is UNSET -- the Tombstone bit already says what the payload
     /// is, and a type byte would be a second answer to a settled question.
-    static Envelope tombstone(std::string key, std::int64_t timestamp_ns);
-    static Envelope tombstone(std::string key);
+    static Envelope tombstone(std::string key, std::uint32_t secs_since_start);
 
     /// A container marker. `meta` is the box's OWN metadata, never a child
     /// listing -- membership comes from a prefix scan of the index. See box_meta.
     /// var_type is UNSET for the same reason as a tombstone's: the Box bit
     /// already determines that the payload is a BoxMeta.
-    static Envelope box(std::string key, Bytes meta, std::int64_t timestamp_ns);
-    static Envelope box(std::string key, Bytes meta);
+    static Envelope box(std::string key, Bytes meta, std::uint32_t secs_since_start);
 
     /// Appends the whole record to `out`, so a segment writer can build a batch
     /// in one buffer with no intermediate copy.
