@@ -784,13 +784,62 @@ class SwiftSearch{
 
         //on disk only. a miss here means the key is known but the read failed
         auto bytes = find_and_read(item, *entry->disk);
-        if(bytes.has_value() && bytes->size() <= _cache_budget){
-            //refused (harmlessly) if the key was overwritten or relocated meanwhile
-            if(_lookup.cache(item, *entry->disk, std::make_shared<const swiftsearch::Bytes>(*bytes))){
-                rememberCached(item, bytes->size());
-            }
+        if(bytes.has_value()){
+            cacheLoaded(item, *entry->disk, *bytes);
         }
         return bytes;
+    }
+
+
+    //puts a value just read from `where` into the in-memory cache and counts it against the budget.
+    //@return false if it did not go in: too big for the budget, already cached, or the key was
+    //overwritten or relocated while it was being read (all harmless, the caller still has the bytes)
+    bool cacheLoaded(const std::string& key, const swiftsearch::DiskLocation& where, const swiftsearch::Bytes& bytes){
+        if(bytes.size() > _cache_budget){
+            return false;
+        }
+        if(!_lookup.cache(key, where, std::make_shared<const swiftsearch::Bytes>(bytes))){
+            return false;
+        }
+        rememberCached(key, bytes.size());
+        return true;
+    }
+
+
+    //the work of prepare(): get one key's value from disk into the cache, or say why it could not
+    Error load_into_memory(const std::string& key){
+        const auto entry = location_in_lookup(key);
+        if(!entry.has_value()){
+            return BAD("no such key");
+        }
+        if(entry->inMemory()){
+            return GOOD; //nothing to do. putMemory'd values and already cached ones end up here
+        }
+        if(!entry->onDisk()){
+            return BAD("key has no stored value");
+        }
+
+        //the payload size is exact from the table, so an impossible request fails before any disk read
+        const std::uint64_t fixed = swiftsearch::RECORD_OVERHEAD + key.size();
+        const std::uint64_t payload = entry->disk->length > fixed ? entry->disk->length - fixed : 0;
+        if(payload > _cache_budget){
+            return BAD("value is larger than the memory budget");
+        }
+
+        const auto bytes = find_and_read(key, *entry->disk);
+        if(!bytes.has_value()){
+            return BAD("could not read the value from disk");
+        }
+        if(cacheLoaded(key, *entry->disk, *bytes)){
+            return GOOD;
+        }
+        //cacheLoaded refuses when another reader cached it first, which is fine, or when the key
+        //changed under us, which means the value we loaded is no longer the live one
+        const auto now = location_in_lookup(key);
+        if(now.has_value() && now->inMemory()){
+            return GOOD;
+        }
+        return BAD("the key changed while it was being loaded, try again");
     }
 
 
@@ -906,6 +955,34 @@ class SwiftSearch{
             return BAD(std::string("delete failed: ") + e.what());
         }
         return GOOD;
+    }
+
+
+    /**
+     * Moves one key's value from disk into memory, so the Get after it is served from RAM.
+     *
+     * "Moves" is a copy: the log is append-only, so the record stays on disk and the key
+     * becomes Residency::Both. The cached copy counts against the cache budget like any
+     * other and is NOT pinned, so later reads can push it out again (oldest cached first).
+     *
+     * GOOD when the value is in memory afterwards, including when it already was.
+     * BAD when the key does not exist, the value is bigger than the whole budget, the
+     * disk read fails (bad CRC, missing segment), or the key was overwritten mid-load.
+     * Runs on the pool like Get does. Don't call this from inside a pool task.
+     */
+    Error prepare(const std::string_view& item){
+        try{
+            std::future<Error> answer;
+            {
+                std::shared_lock<std::shared_mutex> lock(_pool_mtx);
+                answer = _pool->submit([this, key = std::string(item)]{
+                     return load_into_memory(key); 
+                    });
+            }
+            return answer.get();
+        }catch(const std::exception& e){
+            return BAD(std::string("prepare failed: ") + e.what());
+        }
     }
 
 
