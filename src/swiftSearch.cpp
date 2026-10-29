@@ -1172,9 +1172,10 @@ class SwiftSearch{
      * Gives back the disk space that overwritten and deleted values hold.
      *
      * Rewrites every segment where at least `min_dead_percent` of the bytes are dead, oldest
-     * first. Each live record is copied, byte for byte, to the end of the active segment and
-     * its table entry moved there; then the old file is deleted. If the active segment
-     * qualifies, a new one is started first so it can be compacted like the rest.
+     * first; 0 rewrites every segment there is, dead bytes or not. Each live record is copied,
+     * byte for byte, to the end of the active segment and its table entry moved there; then
+     * the old file is deleted. If the active segment qualifies, a new one is started first so
+     * it can be compacted like the rest.
      *
      * CRASH SAFETY: a copy always lands in a newer segment than its original, so replay
      * applies it later and the last record for the key still wins, with the same value.
@@ -1194,8 +1195,8 @@ class SwiftSearch{
      */
     std::expected<swiftsearch::CompactReport, std::string> compact(const std::size_t min_dead_percent,
         const std::function<bool()>& should_stop = {}){
-        if(min_dead_percent == 0 || min_dead_percent > 100){
-            return std::unexpected("dead percent must be 1 to 100");
+        if(min_dead_percent > 100){
+            return std::unexpected("dead percent must be 0 to 100");
         }
         std::unique_lock<std::mutex> running(_compact_mtx, std::try_to_lock);
         if(!running.owns_lock()){

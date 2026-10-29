@@ -365,22 +365,44 @@ std::optional<swiftsearch::CompactReport> Supervise::compactIfIdle(const std::ch
         note("compaction failed: " + report.error(), Logger::HIGH);
         return std::nullopt;
     }
-    for(const auto& problem : report->problems){
-        note("compaction: " + problem, Logger::HIGH);
-    }
-    const std::string removed = std::to_string(report->segmentsRemoved)
-        + (report->segmentsRemoved == 1 ? " segment" : " segments");
-    if(report->stopped){
-        note("compaction stopped for a request after removing " + removed
-             + "; it picks up the next idle window", Logger::MED);
-    }else{
+    noteCompaction(*report, "compaction", "for a request; the next idle window picks it up");
+    if(!report->stopped){
         _compacted_at = since;
-        if(report->segmentsRemoved > 0){
-            note("compaction removed " + removed + " (" + std::to_string(report->bytesRemoved)
-                 + " bytes), copying " + std::to_string(report->bytesCopied) + " bytes forward", Logger::MED);
-        }
     }
     return *report;
+}
+
+
+std::expected<swiftsearch::CompactReport, std::string> Supervise::compactAll(){
+    std::lock_guard<std::mutex> lock(_compact_run_mtx); //waits out an idle run rather than failing beside it
+    const std::uint64_t since = _main->activityCount();
+    auto report = _main->compact(0, [this]{ return _stopping.load(); });
+    if(!report.has_value()){
+        note("full compaction failed: " + report.error(), Logger::HIGH);
+        return report;
+    }
+    noteCompaction(*report, "full compaction", "because Supervise is stopping");
+    if(!report->stopped){
+        _compacted_at = since;
+    }
+    return report;
+}
+
+
+void Supervise::noteCompaction(const swiftsearch::CompactReport& report, const std::string_view what,
+                               const std::string_view stopped_because){
+    for(const auto& problem : report.problems){
+        note(std::string(what) + ": " + problem, Logger::HIGH);
+    }
+    const std::string removed = std::to_string(report.segmentsRemoved)
+        + (report.segmentsRemoved == 1 ? " segment" : " segments");
+    if(report.stopped){
+        note(std::string(what) + " stopped after removing " + removed + ", " + std::string(stopped_because),
+             Logger::MED);
+    }else if(report.segmentsRemoved > 0){
+        note(std::string(what) + " removed " + removed + " (" + std::to_string(report.bytesRemoved)
+             + " bytes), copying " + std::to_string(report.bytesCopied) + " bytes forward", Logger::MED);
+    }
 }
 
 

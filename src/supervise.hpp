@@ -141,6 +141,9 @@ class Supervise{
 
     void compactorLoop();
     void stopCompactor() noexcept;
+    //logs what a run did: each problem at HIGH, then what it removed, or why it stopped, at MED
+    void noteCompaction(const swiftsearch::CompactReport& report, std::string_view what,
+                        std::string_view stopped_because);
 
 
     public:
@@ -190,6 +193,16 @@ class Supervise{
      * @return what the run did, or nullopt if it was not due (or failed, which is logged).
      */
     std::optional<swiftsearch::CompactReport> compactIfIdle(std::chrono::steady_clock::time_point now);
+
+    /**
+     * Compacts every segment now, whatever its dead share, whether or not the store is idle
+     * and whatever the compaction settings say (even off). Every live record is rewritten
+     * into fresh segments, and tombstones are dropped wherever nothing older is left.
+     * Requests keep being served: each waits at most one batch. Only stop() cuts it short.
+     * A segment with a record that will not read is still kept, never deleted; see problems.
+     * If the idle compactor is mid-run, this waits for it to finish first.
+     */
+    std::expected<swiftsearch::CompactReport, std::string> compactAll();
 
     Limits limits() const;
     /// The most one MOVE may load right now, in bytes.
