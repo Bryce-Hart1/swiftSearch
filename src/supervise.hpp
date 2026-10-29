@@ -19,9 +19,12 @@
  *                 stop after the batch it is on; it resumes the next idle window.
  *   - GET/PUT /v1/admin/limits to read and change those caps while running.
  *
- * ADMIN IS LOOPBACK ONLY. There is no authentication, so the admin route only
- * answers when the server is bound to a loopback address. Bound anywhere else
- * it is a 404, and the caps can only be set with flags at startup.
+ * ADMIN IS OFF UNLESS ASKED FOR, AND LOOPBACK ONLY EVEN THEN. There is no
+ * authentication, so the admin route only answers when options.admin is set AND
+ * the server is bound to a loopback address. Loopback alone is not enough: a
+ * reverse proxy on the same machine (castle+) connects from 127.0.0.1 on behalf
+ * of anyone on the internet. When off it is a 404, and the caps can only be set
+ * with flags at startup.
  *
  * Store errors are written to the Logger handed in and answered with a
  * StoreStatus. Nothing here throws past a request.
@@ -75,6 +78,10 @@ struct SupervisorOptions {
     std::size_t compactDeadPercent = 50;
     /// Segment files roll over at this size. Fixed once the store is open.
     std::uint64_t segmentLimitBytes = 256ull * 1024ull * 1024ull;
+    /// Serve GET/PUT /v1/admin/limits. Off by default, and ignored unless the bind
+    /// address is loopback. Leave it off behind a reverse proxy on the same machine,
+    /// which reaches this server from loopback for every outside client.
+    bool admin = false;
     /// Bind address, port and request threads. Fixed once the server starts.
     swiftsearch::http::ServerOptions server;
 };

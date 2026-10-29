@@ -102,6 +102,7 @@ A typical start with a few options:
 | `--cpu-low P` | `60` | CPU busy percent below which it adds a thread back. Must be under `--cpu-high`. |
 | `--compact-idle T` | `10m` | How long the store must go without reads or writes before compaction runs. `0` turns it off. |
 | `--compact-dead-percent N` | `50` | How much of a segment must be dead before compaction rewrites it, `1`–`100`. |
+| `--admin` | off | Serve `GET`/`PUT /v1/admin/limits` to change limits while running. Loopback binds only; see [below](#changing-limits-while-it-runs) before using it behind a proxy. |
 | `-h`, `--help` | | Print the options. |
 
 `SIZE` is plain bytes, or a number with a `K`, `M` or `G` suffix (powers of 1024):
@@ -134,16 +135,20 @@ during compaction.
 
 ### Changing limits while it runs
 
-All of the limits above except `--store`, `--bind`, `--port` and `--threads` can be
-read and changed on a running server through `GET`/`PUT /v1/admin/limits`, for
-example:
+Start with `--admin` and all of the limits above except `--store`, `--bind`,
+`--port` and `--threads` can be read and changed on a running server through
+`GET`/`PUT /v1/admin/limits`, for example:
 
 ```bash
+./build/bin/swiftSearch serve --admin
 curl -X PUT 'http://127.0.0.1:8080/v1/admin/limits?mem=128M&compact_idle=5m'
 ```
 
-That route only answers when the server is bound to loopback. See the admin section
-of [USE.md](USE.md#admin-v1adminlimits) for every field and parameter.
+The route is **off by default**, and stays off unless the server is bound to
+loopback. **Don't use `--admin` behind a reverse proxy on the same machine** (such
+as castle+): the proxy connects from `127.0.0.1` on behalf of every outside client,
+so anyone on the internet could change the limits. See the admin section of
+[USE.md](USE.md#admin-v1adminlimits) for every field and parameter.
 
 ---
 
@@ -166,8 +171,11 @@ and delete everything stored.
 
 - The default `--bind 127.0.0.1` means only programs on the same machine can
   connect. `--bind 0.0.0.0` exposes every stored file to the whole network.
-- The admin route is switched off whenever the bind address is not loopback, so
-  the limits cannot be changed remotely.
+- Behind a reverse proxy, the proxy is what keeps the store private: it must handle
+  authentication, because every request it forwards arrives from loopback.
+- The admin route is off unless you pass `--admin`, and even then only answers on a
+  loopback bind. Leave it off whenever a proxy on the same machine forwards to this
+  server.
 
 ---
 

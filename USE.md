@@ -47,7 +47,7 @@ store something other than what is on your disk.
 | `DELETE` | `/v1/blobs/<key>` | Remove a value | `204` |
 | `POST` | `/v1/prepare/<key>` | Load a value from disk into memory | `204` |
 | `GET` `HEAD` | `/healthz` | Is the server up? | `200` |
-| `GET` `PUT` | `/v1/admin/limits` | Read or change the server's limits (loopback only) | `200` |
+| `GET` `PUT` | `/v1/admin/limits` | Read or change the server's limits (`--admin`, loopback only) | `200` |
 | `GET` `PUT` | `/v1/boxes/<key>` | Folders of keys. **Not built yet**, always `501` | — |
 
 Any other method on a known path gets `405` with an `Allow` header listing what
@@ -278,9 +278,13 @@ the store, so it does not keep compaction from running.
 ## Admin: `/v1/admin/limits`
 
 Read and change the server's limits while it runs. This route **only exists when the
-server is bound to a loopback address** (`127.x.x.x`, `::1` or `localhost`). Bound
-anywhere else it answers `404 no such route`, and the limits can only be set by the
-startup flags. Other methods get `405` with `Allow: GET, PUT`.
+server was started with `--admin` and is bound to a loopback address** (`127.x.x.x`,
+`::1` or `localhost`). Otherwise it answers `404 no such route`, and the limits can
+only be set by the startup flags. Other methods get `405` with `Allow: GET, PUT`.
+
+It is off by default because loopback is not proof that a request is local: a
+reverse proxy on the same machine forwards every outside client from `127.0.0.1`.
+Don't turn it on behind one.
 
 ### `GET /v1/admin/limits`
 
@@ -356,7 +360,7 @@ Every error has a JSON body of the same shape:
 | Status | `code` | Common causes |
 |---|---|---|
 | `400` | `bad_request` | A key that breaks a [key rule](#keys), an unknown `X-SwiftSearch-Type`, a bad admin parameter, a malformed request |
-| `404` | `not_found` | No such key; no such route; the admin route on a non-loopback bind |
+| `404` | `not_found` | No such key; no such route; the admin route without `--admin` or on a non-loopback bind |
 | `405` | `method_not_allowed` | A method that path does not take. The `Allow` header lists the ones it does. |
 | `408` | `request_timeout` | The request arrived too slowly (see [Limits](#limits-and-timeouts)) |
 | `411` | `length_required` | `PUT` without `Content-Length` |

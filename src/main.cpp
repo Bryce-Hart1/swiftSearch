@@ -67,10 +67,12 @@ void usage() {
     println(cout, "                         0 = never (default: 10m)");
     println(cout, "      --compact-dead-percent N");
     println(cout, "                         rewrite segments at least this percent dead, 1-100 (default: 50)");
+    println(cout, "      --admin            serve GET/PUT /v1/admin/limits (off by default; loopback binds only)");
     println(cout, "  -h, --help             this text");
     println(cout, "");
-    println(cout, "  The caps can be changed while running with PUT /v1/admin/limits,");
-    println(cout, "  e.g. ?mem=128M&cpu_threads=4&compact_idle=5m. That route only answers on a loopback bind.");
+    println(cout, "  With --admin the caps can be changed while running with PUT /v1/admin/limits,");
+    println(cout, "  e.g. ?mem=128M&cpu_threads=4&compact_idle=5m. Leave it off behind a reverse proxy");
+    println(cout, "  on the same machine: the proxy reaches this server from loopback for every client.");
     println(cout, "");
     println(cout, "  The default bind address is loopback. There is NO authentication,");
     println(cout, "  so --bind 0.0.0.0 exposes every stored blob to the whole network.");
@@ -148,6 +150,8 @@ int serve(int argc, char** argv) {
                 return EXIT_USAGE;
             }
             opt.compactIdle = *idle;
+        } else if (a == "--admin") {
+            opt.admin = true;
         } else if (a == "--compact-dead-percent") {
             if (!number("--compact-dead-percent", 100, opt.compactDeadPercent)) return EXIT_USAGE;
         } else {
@@ -161,6 +165,7 @@ int serve(int argc, char** argv) {
     Server::ignoreSigpipe();
 
     const std::string bindShown = opt.server.bindAddress;
+    const bool adminAsked = opt.admin;
     const std::string storeShown = opt.storePath.string();
     std::unique_ptr<Supervise> supervisor;
     try {
@@ -204,8 +209,10 @@ int serve(int argc, char** argv) {
     std::println("  GET                 /healthz");
     if (supervisor->adminEnabled()) {
         std::println("  GET/PUT             {}", Supervise::ADMIN_LIMITS_PATH);
-    } else {
+    } else if (adminAsked) {
         std::println("  admin route off: {} is not a loopback address", bindShown);
+    } else {
+        std::println("  admin route off (start with --admin to serve {})", Supervise::ADMIN_LIMITS_PATH);
     }
     std::println("");
     std::println("store: {}", storeShown);

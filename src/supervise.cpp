@@ -65,7 +65,7 @@ std::uint64_t u64(const std::size_t n){
 
 Supervise::Supervise(SupervisorOptions options, Logger& log):
     _log(log),
-    _admin_enabled(isLoopback(options.server.bindAddress)),
+    _admin_enabled(options.admin && isLoopback(options.server.bindAddress)),
     _request_threads(options.server.requestThreads != 0 ? options.server.requestThreads
                                                         : bstd::syst::threadCount().value_or(4)),
     _main(std::make_unique<SwiftSearch>(options.storePath, options.segmentLimitBytes)),
@@ -96,7 +96,7 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
     _binding.remove = [this](std::string_view key){ return DELETE(key); };
     _binding.prepare = [this](std::string_view key){ return MOVE(key); };
 
-    if(!_admin_enabled){
+    if(options.admin && !_admin_enabled){
         note("admin route off: bound to " + options.server.bindAddress + ", which is not loopback",
              Logger::WARNING);
     }
