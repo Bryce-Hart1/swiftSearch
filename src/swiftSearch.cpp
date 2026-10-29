@@ -1,5 +1,6 @@
 #include "bstd/store/serialize.hpp"
 #include "bytes.hpp"
+#include "compact.hpp"
 #include "crc32c.hpp"
 #include "find.hpp"
 #include "file_sync.hpp"
@@ -20,6 +21,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <iterator>
 #include <limits>
@@ -51,6 +53,10 @@
  * Writers are serialized by _write_mtx, so the order records land on disk is the
  * order the table sees them, which is what makes replay agree with the live table.
  * Readers never take it.
+ *
+ * Overwritten and deleted values stay in their segment as dead bytes, counted per
+ * segment in _dead, until compact() copies the live records forward and deletes
+ * the old file. See compact() for why that is crash safe.
  */
 class SwiftSearch{
 /** @attention all usings                        */
@@ -64,6 +70,11 @@ class SwiftSearch{
     static constexpr std::uint64_t DEFAULT_SEGMENT_LIMIT = 256ull * 1024ull * 1024ull;
     static constexpr std::size_t DEFAULT_CACHE_BUDGET = 64ull * 1024ull * 1024ull;
     static constexpr const char* META_FILE = "store.meta"; //holds the StartDate
+    //compaction copies records forward this many bytes at a time: one append and one fsync per
+    //batch, and the most a client write waits on it
+    static constexpr std::uint64_t COMPACT_BATCH_BYTES = 4ull * 1024ull * 1024ull;
+    //a read that fails because compaction moved the record looks again, at most this many times
+    static constexpr int READ_ATTEMPTS = 3;
 
 
     public:
@@ -124,6 +135,10 @@ class SwiftSearch{
 
         std::uint32_t id() const noexcept{
             return _id;
+        }
+
+        const fsPath& path() const noexcept{
+            return _path;
         }
 
         std::uint64_t size() const{
@@ -237,6 +252,20 @@ class SwiftSearch{
     mutable std::mutex _cache_mtx;
     std::deque<std::pair<std::string, std::size_t>> _cache_fifo;
     std::size_t _cache_bytes = 0;
+
+    /** @brief DEAD BYTES ---------------------------------------------- */
+    //per segment, bytes of values no key points at any more: overwritten or deleted. A hint for
+    //what is worth compacting, rebuilt by replay. Tombstones are never counted, see compact()
+    mutable std::mutex _usage_mtx;
+    std::map<std::uint32_t, std::uint64_t> _dead;
+    std::mutex _compact_mtx; //one compaction at a time
+
+    /** @brief ACTIVITY ---------------------------------------------- */
+    //bumped by every public read and write, so a caller can tell how long the store has been idle
+    //and a compaction can tell a request arrived. Compaction's own reads and writes do not count
+    std::atomic<std::uint64_t> _activity{0};
+    std::atomic<std::chrono::steady_clock::rep> _last_activity{
+        std::chrono::steady_clock::now().time_since_epoch().count()};
 
     /** @brief POOL ---------------------------------------------- */
     mutable std::shared_mutex _pool_mtx; //shared while submitting, exclusive while scaleDownCpu swaps the pool
@@ -372,37 +401,50 @@ class SwiftSearch{
         return std::unexpected(err);
     }
 
+    //The bytes of the whole record at `at`, read once its header has checked out. The error is the
+    //header-level status that stopped it; a record running past `end` is Truncated. The body is not
+    //checked here, decodeRecord does that. Shared by replay and compaction.
+    //@throws if the file read itself fails
+    static std::expected<swiftsearch::Bytes, swiftsearch::DecodeStatus> readWholeRecord(const LockableFile& seg,
+        const std::uint64_t at, const std::uint64_t end){
+        const std::uint64_t remaining = end - at;
+        const auto head = seg.readAt(at, std::min<std::uint64_t>(swiftsearch::HEADER_SIZE, remaining));
+        if(!head.has_value()){
+            throw std::runtime_error("read failed in segment " + std::to_string(seg.id()));
+        }
+        const auto total = recordSize(*head);
+        if(!total.has_value()){
+            return std::unexpected(total.error().status); //torn, not a record, header rot, or policy
+        }
+        if(*total > remaining){
+            return std::unexpected(swiftsearch::DecodeStatus::Truncated); //header fine, body never finished
+        }
+        auto whole = seg.readAt(at, *total);
+        if(!whole.has_value()){
+            throw std::runtime_error("read failed in segment " + std::to_string(seg.id()));
+        }
+        return std::move(*whole);
+    }
+
     void replaySegment(LockableFile& seg, const bool is_newest){
         using swiftsearch::DecodeStatus;
         const std::uint64_t end = seg.size();
         std::uint64_t at = 0;
 
         while(at < end){
-            const std::uint64_t remaining = end - at;
-            const auto head = seg.readAt(at, std::min<std::uint64_t>(swiftsearch::HEADER_SIZE, remaining));
-            if(!head.has_value()){
-                throw std::runtime_error("read failed in segment " + std::to_string(seg.id()));
-            }
-
-            const auto total = recordSize(*head);
-            if(!total.has_value()){
-                if(swiftsearch::isPolicy(total.error().status)){
+            const auto whole = readWholeRecord(seg, at, end);
+            if(!whole.has_value()){
+                if(swiftsearch::isPolicy(whole.error())){
                     //intact bytes this build will not interpret: refuse to start rather than cut data away
                     throw std::runtime_error("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
-                        + ": " + std::string(swiftsearch::describe(total.error().status)));
+                        + ": " + std::string(swiftsearch::describe(whole.error())));
                 }
-                endReplayAt(seg, at, total.error().status, is_newest); //torn, not a record, or header rot
+                endReplayAt(seg, at, whole.error(), is_newest);
                 return;
             }
-            if(*total > remaining){
-                endReplayAt(seg, at, DecodeStatus::Truncated, is_newest); //header fine, body never finished
-                return;
-            }
+            const std::uint64_t total = whole->size();
+            const swiftsearch::DiskLocation here{seg.id(), at, total};
 
-            const auto whole = seg.readAt(at, *total);
-            if(!whole.has_value()){
-                throw std::runtime_error("read failed in segment " + std::to_string(seg.id()));
-            }
             const auto decoded = swiftsearch::decodeRecord(*whole);
             if(!decoded.has_value()){
                 const DecodeStatus status = decoded.error().status;
@@ -410,27 +452,33 @@ class SwiftSearch{
                     throw std::runtime_error("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
                         + ": " + std::string(swiftsearch::describe(status)));
                 }
-                if(status == DecodeStatus::BodyCrcMismatch && !(is_newest && at + *total == end)){
+                if(status == DecodeStatus::BodyCrcMismatch && !(is_newest && at + total == end)){
                     //the header was sound so the length is too: skip this one record and keep the rest.
                     //The key is untrusted (only the body CRC covered it), so it is not named here.
                     _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
                         + ": record body is damaged, skipped");
-                    at += *total;
+                    markDead(here);
+                    at += total;
                     continue;
                 }
                 endReplayAt(seg, at, status, is_newest); //includes a bad record that is the very last write
                 return;
             }
 
+            //the same bookkeeping Put and Delete do, so the dead counts come back after a restart
             const auto& envelope = decoded->envelope;
+            const auto before = _lookup.lookup(envelope.key());
             if(envelope.isTombstone()){
                 _lookup.erase(envelope.key());
-            }else if(!_lookup.putDisk(envelope.key(), swiftsearch::DiskLocation{seg.id(), at, *total},
-                                      envelope.header().var_type)){
+                markReplaced(before);
+            }else if(_lookup.putDisk(envelope.key(), here, envelope.header().var_type)){
+                markReplaced(before);
+            }else{
                 _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
                     + ": record with an empty key, skipped");
+                markDead(here);
             }
-            at += *total;
+            at += total;
         }
     }
 
@@ -468,10 +516,225 @@ class SwiftSearch{
 
     private:
 
-    Error compact(){
-       return std::nullopt;
+    /** @attention Dead bytes and activity ------------------------------------- */
 
+    void markDead(const swiftsearch::DiskLocation& where){
+        std::lock_guard<std::mutex> lock(_usage_mtx);
+        _dead[where.segment] += where.length;
     }
+
+    //a write replaced or removed the entry a key had: its record is dead weight in its segment now
+    void markReplaced(const std::optional<swiftsearch::Entry>& before){
+        if(before.has_value() && before->onDisk()){
+            markDead(*before->disk);
+        }
+    }
+
+    void noteActivity() noexcept{
+        _activity.fetch_add(1);
+        _last_activity.store(std::chrono::steady_clock::now().time_since_epoch().count());
+    }
+
+    //true when `key` no longer lives at `was`: compaction moved it, or a write replaced it
+    bool movedSince(const std::string& key, const swiftsearch::DiskLocation& was) const{
+        const auto now = _lookup.lookup(key);
+        return now.has_value() && (now->inMemory() || now->disk != was);
+    }
+
+    //true when the table says `key`'s live value is the record at `where`
+    bool pointsAt(const std::string& key, const swiftsearch::DiskLocation& where) const{
+        const auto entry = _lookup.lookup(key);
+        return entry.has_value() && entry->disk == where;
+    }
+
+
+    /** @attention Compaction ------------------------------------------------ */
+
+    //one live value or needed tombstone, read from the segment being compacted and waiting to be copied
+    struct Pending{
+        std::string key;
+        swiftsearch::DiskLocation from;
+        swiftsearch::Bytes raw; //the record exactly as it is on disk, timestamp and all
+        bool tombstone = false;
+    };
+
+    enum class SegmentOutcome{ Removed, Kept, Stopped };
+
+    //Segments worth rewriting, oldest first: at least min_dead_percent of their bytes dead, or
+    //sealed and empty. When the active segment is one of them a new active segment is started, so
+    //the old one is sealed and nothing writes into it while it is being compacted
+    std::vector<std::shared_ptr<LockableFile>> compactionCandidates(const std::size_t min_dead_percent){
+        std::map<std::uint32_t, std::uint64_t> dead;
+        {
+            std::lock_guard<std::mutex> lock(_usage_mtx);
+            dead = _dead;
+        }
+        std::vector<std::shared_ptr<LockableFile>> picked;
+        std::shared_ptr<LockableFile> active;
+        {
+            std::shared_lock<std::shared_mutex> lock(_segments_mtx);
+            active = _segments.rbegin()->second;
+            for(const auto& [id, seg] : _segments){
+                const std::uint64_t size = seg->size();
+                const auto itr = dead.find(id);
+                const std::uint64_t dead_bytes = itr == dead.end() ? 0 : itr->second;
+                if(size == 0 ? seg != active : dead_bytes * 100 >= min_dead_percent * size){
+                    picked.push_back(seg);
+                }
+            }
+        }
+        if(!picked.empty() && picked.back() == active){
+            std::lock_guard<std::mutex> lock(_write_mtx);
+            std::uint32_t newest = 0;
+            {
+                std::shared_lock<std::shared_mutex> segs(_segments_mtx);
+                newest = _segments.rbegin()->first;
+            }
+            if(newest == active->id()){ //a write may have rolled past it already, which seals it just the same
+                createSegment(active->id() + 1);
+            }
+        }
+        return picked;
+    }
+
+    //compaction's read of one record: every CRC checked. The error is a sentence for the report
+    static std::expected<std::pair<swiftsearch::Bytes, swiftsearch::Envelope>, std::string>
+    checkedRecordAt(const LockableFile& seg, const std::uint64_t at, const std::uint64_t end){
+        try{
+            auto whole = readWholeRecord(seg, at, end);
+            if(!whole.has_value()){
+                return std::unexpected(std::string(swiftsearch::describe(whole.error())));
+            }
+            auto decoded = swiftsearch::decodeRecord(*whole);
+            if(!decoded.has_value()){
+                return std::unexpected(std::string(swiftsearch::describe(decoded.error().status)));
+            }
+            return std::pair{std::move(*whole), std::move(decoded->envelope)};
+        }catch(const std::exception& e){
+            return std::unexpected(std::string(e.what()));
+        }
+    }
+
+    //A first look, without the write lock, at whether a record has to survive. copyForward asks
+    //again under the lock before anything is written, so a stale answer here only costs a skip
+    bool worthCopying(const swiftsearch::Envelope& envelope, const swiftsearch::DiskLocation& here,
+                      const bool oldest) const{
+        if(envelope.isTombstone()){
+            //in the oldest segment nothing older is left for the key to come back from. Elsewhere it
+            //is still needed while the key stays deleted; once the key is back, a later write won
+            return !oldest && !_lookup.contains(envelope.key());
+        }
+        return pointsAt(envelope.key(), here);
+    }
+
+    //Re-checks every pending record under the write lock, appends the ones still needed to the
+    //active segment in one write and one fsync, and points the table at the copies.
+    //Checking and appending under the same lock is what keeps this right: a client write that
+    //slipped in between would otherwise be followed by an older copy, and replay would bring the
+    //old value (or the deletion) back
+    Error copyForward(const std::vector<Pending>& batch, swiftsearch::CompactReport& report){
+        std::lock_guard<std::mutex> lock(_write_mtx);
+        swiftsearch::Bytes out;
+        std::vector<const Pending*> kept;
+        for(const auto& p : batch){
+            if(p.tombstone ? !_lookup.contains(p.key) : pointsAt(p.key, p.from)){
+                out.insert(out.end(), p.raw.begin(), p.raw.end());
+                kept.push_back(&p);
+            }
+        }
+        if(kept.empty()){
+            return GOOD;
+        }
+        const auto seg = activeSegmentFor(out.size());
+        const auto at = seg->append(out);
+        if(!at.has_value()){
+            return BAD("could not copy records forward: " + at.error());
+        }
+        std::uint64_t offset = *at;
+        for(const Pending* p : kept){
+            const swiftsearch::DiskLocation to{seg->id(), offset, p->raw.size()};
+            offset += p->raw.size();
+            if(p->tombstone){
+                continue; //nothing in the table points at a tombstone
+            }
+            //the original is garbage from here on, which matters if this run stops before its segment goes
+            markDead(_lookup.relocate(p->key, p->from, to) ? p->from : to);
+        }
+        report.bytesCopied += out.size();
+        return GOOD;
+    }
+
+    //Takes a segment compaction has emptied out of the segment table, so no new reader finds it,
+    //then off the disk. A reader still holding it keeps its open descriptor until it is done
+    void removeSegment(const std::shared_ptr<LockableFile>& seg, swiftsearch::CompactReport& report){
+        {
+            std::unique_lock<std::shared_mutex> lock(_segments_mtx);
+            _segments.erase(seg->id());
+        }
+        {
+            std::lock_guard<std::mutex> lock(_usage_mtx);
+            _dead.erase(seg->id());
+        }
+        std::error_code ec;
+        std::filesystem::remove(seg->path(), ec);
+        if(ec){
+            //everything in it is a duplicate or dead, so a restart that finds it again loses nothing
+            report.problems.push_back("could not delete " + seg->path().string() + ": " + ec.message());
+        }
+        syncStoreDirectory();
+        report.segmentsRemoved += 1;
+        report.bytesRemoved += seg->size();
+    }
+
+    //Walks one sealed segment, copies what must survive forward a batch at a time, then deletes it.
+    //A record that will not read keeps the whole segment: compaction never deletes what it could not check
+    std::expected<SegmentOutcome, std::string> compactSegment(const std::shared_ptr<LockableFile>& seg,
+        const std::function<bool()>& stop, swiftsearch::CompactReport& report){
+        bool oldest = false;
+        {
+            std::shared_lock<std::shared_mutex> lock(_segments_mtx);
+            oldest = _segments.begin()->first == seg->id();
+        }
+        const std::uint64_t end = seg->size();
+        //a quarter segment at most, so even a segment under 4 MiB gives way to a request part way through
+        const std::uint64_t batch_limit = std::max<std::uint64_t>(1, std::min(COMPACT_BATCH_BYTES, _segment_limit / 4));
+        std::vector<Pending> batch;
+        std::uint64_t walked = 0; //bytes looked at since the last flush. Counting dead ones too means a
+                                  //mostly dead segment still gives way to a request every batch
+        std::uint64_t at = 0;
+
+        while(at < end){
+            auto record = checkedRecordAt(*seg, at, end);
+            if(!record.has_value()){
+                report.problems.push_back("segment " + std::to_string(seg->id()) + " offset " + std::to_string(at)
+                    + ": " + record.error() + " (segment kept)");
+                return SegmentOutcome::Kept;
+            }
+            auto& [raw, envelope] = *record;
+            const swiftsearch::DiskLocation here{seg->id(), at, raw.size()};
+            at += raw.size();
+            walked += raw.size();
+            if(worthCopying(envelope, here, oldest)){
+                batch.push_back(Pending{envelope.key(), here, std::move(raw), envelope.isTombstone()});
+            }
+            if(walked >= batch_limit){
+                if(const auto e = copyForward(batch, report)){
+                    return std::unexpected(*e);
+                }
+                batch.clear();
+                walked = 0;
+                if(at < end && stop()){
+                    return SegmentOutcome::Stopped;
+                }
+            }
+        }
+        if(const auto e = copyForward(batch, report)){
+            return std::unexpected(*e);
+        }
+        removeSegment(seg, report);
+        return SegmentOutcome::Removed;
+    }
+
 
     //reads one record's value from the segment file named by where
     std::optional<swiftsearch::Bytes> find_and_read(const std::string& key, const swiftsearch::DiskLocation& where){
@@ -555,24 +818,30 @@ class SwiftSearch{
 
 
     std::optional<Value> thread_gets(const std::string& item){
-        const auto entry = location_in_lookup(item);
-        if(!entry.has_value()){
-            return std::nullopt;
-        }
-        if(entry->inMemory()){
-            return Value{*entry->memory, entry->type}; //copy out; the shared buffer stays in the table
-        }
-        if(!entry->onDisk()){
-            return std::nullopt;
-        }
+        for(int attempt = 1; attempt <= READ_ATTEMPTS; ++attempt){
+            const auto entry = location_in_lookup(item);
+            if(!entry.has_value()){
+                return std::nullopt;
+            }
+            if(entry->inMemory()){
+                return Value{*entry->memory, entry->type}; //copy out; the shared buffer stays in the table
+            }
+            if(!entry->onDisk()){
+                return std::nullopt;
+            }
 
-        //on disk only. a miss here means the key is known but the read failed
-        auto bytes = find_and_read(item, *entry->disk);
-        if(!bytes.has_value()){
-            return std::nullopt;
+            auto bytes = find_and_read(item, *entry->disk);
+            if(bytes.has_value()){
+                cacheLoaded(item, *entry->disk, *bytes);
+                return Value{std::move(*bytes), entry->type};
+            }
+            //compaction can move the record (and delete its old segment) between the lookup and the
+            //read, so look again. If it has not moved, the key is known but its record will not read
+            if(!movedSince(item, *entry->disk)){
+                return std::nullopt;
+            }
         }
-        cacheLoaded(item, *entry->disk, *bytes);
-        return Value{std::move(*bytes), entry->type};
+        return std::nullopt;
     }
 
 
@@ -593,36 +862,40 @@ class SwiftSearch{
 
     //the work of prepare(): get one key's value from disk into the cache, or say why it could not
     Error load_into_memory(const std::string& key){
-        const auto entry = location_in_lookup(key);
-        if(!entry.has_value()){
-            return BAD("no such key");
-        }
-        if(entry->inMemory()){
-            return GOOD; //nothing to do. putMemory'd values and already cached ones end up here
-        }
-        if(!entry->onDisk()){
-            return BAD("key has no stored value");
-        }
+        for(int attempt = 1; ; ++attempt){
+            const auto entry = location_in_lookup(key);
+            if(!entry.has_value()){
+                return BAD("no such key");
+            }
+            if(entry->inMemory()){
+                return GOOD; //nothing to do. putMemory'd values and already cached ones end up here
+            }
+            if(!entry->onDisk()){
+                return BAD("key has no stored value");
+            }
 
-        //the payload size is exact from the table, so an impossible request fails before any disk read
-        if(payloadSize(key.size(), *entry->disk) > _cache_budget.load()){
-            return BAD("value is larger than the memory budget");
-        }
+            //the payload size is exact from the table, so an impossible request fails before any disk read
+            if(payloadSize(key.size(), *entry->disk) > _cache_budget.load()){
+                return BAD("value is larger than the memory budget");
+            }
 
-        const auto bytes = find_and_read(key, *entry->disk);
-        if(!bytes.has_value()){
-            return BAD("could not read the value from disk");
+            const auto bytes = find_and_read(key, *entry->disk);
+            if(bytes.has_value() && cacheLoaded(key, *entry->disk, *bytes)){
+                return GOOD;
+            }
+            //cacheLoaded refuses when another reader cached it first, which is fine, or when the key
+            //changed under us. Compaction moving the record, or a write replacing it, is worth
+            //another look; a record that will not read where it still is, is the answer
+            const auto now = location_in_lookup(key);
+            if(now.has_value() && now->inMemory()){
+                return GOOD;
+            }
+            if(attempt < READ_ATTEMPTS && movedSince(key, *entry->disk)){
+                continue;
+            }
+            return BAD(bytes.has_value() ? "the key changed while it was being loaded, try again"
+                                         : "could not read the value from disk");
         }
-        if(cacheLoaded(key, *entry->disk, *bytes)){
-            return GOOD;
-        }
-        //cacheLoaded refuses when another reader cached it first, which is fine, or when the key
-        //changed under us, which means the value we loaded is no longer the live one
-        const auto now = location_in_lookup(key);
-        if(now.has_value() && now->inMemory()){
-            return GOOD;
-        }
-        return BAD("the key changed while it was being loaded, try again");
     }
 
 
@@ -690,6 +963,7 @@ class SwiftSearch{
 
     /// Get, plus the type the value was stored as. Same pool rule as Get.
     std::optional<Value> GetTyped(const std::string_view& item){
+        noteActivity();
         std::future<std::optional<Value>> answer;
         {
             std::shared_lock<std::shared_mutex> lock(_pool_mtx);
@@ -702,6 +976,7 @@ class SwiftSearch{
     /// Takes the value by value so a caller that is done with its buffer can move it in.
     Error Put(const std::string& name, swiftsearch::Bytes _data,
               const VAR_TYPE type = VAR_TYPE::BIN){
+        noteActivity();
         if(!swiftsearch::keys::is_valid(name)){
             return BAD("invalid key");
         }
@@ -713,11 +988,16 @@ class SwiftSearch{
             const auto record = swiftsearch::Envelope::value(name, std::move(_data), *secs, type).encode();
 
             std::lock_guard<std::mutex> lock(_write_mtx);
+            const auto before = _lookup.lookup(name); //exact: every writer and every relocate holds this lock
             const auto where = appendLocked(record);
             if(!where.has_value()){
                 return BAD(where.error());
             }
-            return putInLookupTable(name, *where, type);
+            if(const auto e = putInLookupTable(name, *where, type)){
+                return e;
+            }
+            markReplaced(before);
+            return GOOD;
         }catch(const std::length_error&){
             return BAD("key or value is over the size limit");
         }catch(const std::exception& e){
@@ -727,10 +1007,12 @@ class SwiftSearch{
 
     /// Deleting a key that does not exist is not an error. Durable when this returns GOOD.
     Error Delete(const std::string_view& item){
+        noteActivity();
         const std::string key(item);
         try{
             std::lock_guard<std::mutex> lock(_write_mtx);
-            if(!_lookup.contains(key)){
+            const auto before = _lookup.lookup(key);
+            if(!before.has_value()){
                 return GOOD;
             }
             //tombstone first, forget second: forgetting alone would let a restart bring the key back
@@ -744,6 +1026,7 @@ class SwiftSearch{
                 return BAD(where.error());
             }
             _lookup.erase(key);
+            markReplaced(before); //the value is dead now. The tombstone is not counted, see compact()
         }catch(const std::exception& e){
             return BAD(std::string("delete failed: ") + e.what());
         }
@@ -764,6 +1047,7 @@ class SwiftSearch{
      * Runs on the pool like Get does. Don't call this from inside a pool task.
      */
     Error prepare(const std::string_view& item){
+        noteActivity();
         try{
             std::future<Error> answer;
             {
@@ -881,6 +1165,100 @@ class SwiftSearch{
             return std::nullopt;
         }
         return payloadSize(key.size(), *entry->disk);
+    }
+
+
+    /**
+     * Gives back the disk space that overwritten and deleted values hold.
+     *
+     * Rewrites every segment where at least `min_dead_percent` of the bytes are dead, oldest
+     * first. Each live record is copied, byte for byte, to the end of the active segment and
+     * its table entry moved there; then the old file is deleted. If the active segment
+     * qualifies, a new one is started first so it can be compacted like the rest.
+     *
+     * CRASH SAFETY: a copy always lands in a newer segment than its original, so replay
+     * applies it later and the last record for the key still wins, with the same value.
+     * A crash part way leaves duplicates, which replay counts as dead and the next run
+     * clears. There is never a moment when the only copy is in an unfinished file.
+     *
+     * TOMBSTONES are dropped when their segment is the oldest on disk, since nothing older
+     * is left for the key to come back from. Elsewhere one whose key is still deleted is
+     * carried forward like a live record. They are never counted as dead bytes, so a
+     * segment of carried tombstones does not qualify again every run.
+     *
+     * `should_stop` is asked before each segment and after each batch of about 4 MiB;
+     * true ends the run with report.stopped set. What was done stays done.
+     *
+     * A segment holding a record that will not read is kept whole and named in
+     * report.problems. Errors: bad percent, another compaction running, or a failed write.
+     */
+    std::expected<swiftsearch::CompactReport, std::string> compact(const std::size_t min_dead_percent,
+        const std::function<bool()>& should_stop = {}){
+        if(min_dead_percent == 0 || min_dead_percent > 100){
+            return std::unexpected("dead percent must be 1 to 100");
+        }
+        std::unique_lock<std::mutex> running(_compact_mtx, std::try_to_lock);
+        if(!running.owns_lock()){
+            return std::unexpected("a compaction is already running");
+        }
+        const std::function<bool()> stop = [&should_stop]{ return should_stop && should_stop(); };
+
+        swiftsearch::CompactReport report;
+        try{
+            for(const auto& seg : compactionCandidates(min_dead_percent)){
+                if(stop()){
+                    report.stopped = true;
+                    break;
+                }
+                const auto outcome = compactSegment(seg, stop, report);
+                if(!outcome.has_value()){
+                    return std::unexpected(outcome.error());
+                }
+                if(*outcome == SegmentOutcome::Stopped){
+                    report.stopped = true;
+                    break;
+                }
+            }
+        }catch(const std::exception& e){
+            return std::unexpected(std::string("compaction failed: ") + e.what());
+        }
+        return report;
+    }
+
+
+    /// Bytes of overwritten and deleted values still on disk: the counter compaction goes by.
+    std::uint64_t deadBytes() const{
+        std::lock_guard<std::mutex> lock(_usage_mtx);
+        std::uint64_t sum = 0;
+        for(const auto& [id, dead] : _dead){
+            sum += dead;
+        }
+        return sum;
+    }
+
+    /// Bytes in every segment file, live and dead.
+    std::uint64_t diskBytes() const{
+        std::shared_lock<std::shared_mutex> lock(_segments_mtx);
+        std::uint64_t sum = 0;
+        for(const auto& [id, seg] : _segments){
+            sum += seg->size();
+        }
+        return sum;
+    }
+
+    std::size_t segmentCount() const{
+        std::shared_lock<std::shared_mutex> lock(_segments_mtx);
+        return _segments.size();
+    }
+
+    /// Goes up by one on every Get, Put, Delete and prepare. Compaction's own work does not move it.
+    std::uint64_t activityCount() const noexcept{
+        return _activity.load();
+    }
+
+    /// When the store last did a Get, Put, Delete or prepare; when it was opened if never.
+    std::chrono::steady_clock::time_point lastActivity() const noexcept{
+        return std::chrono::steady_clock::time_point(std::chrono::steady_clock::duration(_last_activity.load()));
     }
 
 

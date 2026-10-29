@@ -63,10 +63,14 @@ void usage() {
     println(cout, "      --cpu-threads N    store worker threads, 0 = CPU count (default: 0)");
     println(cout, "      --cpu-high P       busy percent the store backs off at (default: 85)");
     println(cout, "      --cpu-low P        busy percent the store ramps up below (default: 60)");
+    println(cout, "      --compact-idle T   compact after this long with no reads or writes, e.g. 90s, 10m, 1h;");
+    println(cout, "                         0 = never (default: 10m)");
+    println(cout, "      --compact-dead-percent N");
+    println(cout, "                         rewrite segments at least this percent dead, 1-100 (default: 50)");
     println(cout, "  -h, --help             this text");
     println(cout, "");
     println(cout, "  The caps can be changed while running with PUT /v1/admin/limits,");
-    println(cout, "  e.g. ?mem=128M&cpu_threads=4. That route only answers on a loopback bind.");
+    println(cout, "  e.g. ?mem=128M&cpu_threads=4&compact_idle=5m. That route only answers on a loopback bind.");
     println(cout, "");
     println(cout, "  The default bind address is loopback. There is NO authentication,");
     println(cout, "  so --bind 0.0.0.0 exposes every stored blob to the whole network.");
@@ -137,6 +141,15 @@ int serve(int argc, char** argv) {
             if (!number("--cpu-high", 100, opt.cpuHigh)) return EXIT_USAGE;
         } else if (a == "--cpu-low") {
             if (!number("--cpu-low", 100, opt.cpuLow)) return EXIT_USAGE;
+        } else if (a == "--compact-idle") {
+            const auto idle = next(value) ? Supervise::parseDuration(value) : std::nullopt;
+            if (!idle) {
+                std::println(stderr, "--compact-idle needs a time such as 600, 90s, 10m or 1h");
+                return EXIT_USAGE;
+            }
+            opt.compactIdle = *idle;
+        } else if (a == "--compact-dead-percent") {
+            if (!number("--compact-dead-percent", 100, opt.compactDeadPercent)) return EXIT_USAGE;
         } else {
             std::println(stderr, "unknown option: {}", a);
             return EXIT_USAGE;
@@ -199,6 +212,12 @@ int serve(int argc, char** argv) {
     std::println("memory cap {} bytes, one prepare up to {}%, {} store threads",
                  caps.memCapBytes, caps.movePercent, caps.cpuThreads == 0 ? std::string("auto")
                                                                           : std::to_string(caps.cpuThreads));
+    if (caps.compactIdleSecs == 0) {
+        std::println("automatic compaction off");
+    } else {
+        std::println("compaction after {}s idle, on segments at least {}% dead",
+                     caps.compactIdleSecs, caps.compactDeadPercent);
+    }
     std::println("ctrl-c to stop.");
 
     // Blocks here for the life of the process. The signal handler above calls

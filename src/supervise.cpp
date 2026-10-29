@@ -1,5 +1,6 @@
 #include "supervise.hpp"
 
+#include <algorithm>
 #include <exception>
 #include <limits>
 #include <stdexcept>
@@ -67,7 +68,7 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
     _admin_enabled(isLoopback(options.server.bindAddress)),
     _request_threads(options.server.requestThreads != 0 ? options.server.requestThreads
                                                         : bstd::syst::threadCount().value_or(4)),
-    _main(std::make_unique<SwiftSearch>(options.storePath)),
+    _main(std::make_unique<SwiftSearch>(options.storePath, options.segmentLimitBytes)),
     _move_percent(0){
     for(const auto& warning : _main->Warnings()){
         note(warning, Logger::WARNING);
@@ -81,6 +82,9 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
         throw std::invalid_argument(*e);
     }
     if(const auto e = CAP_MEM(options.memCapBytes)){
+        throw std::invalid_argument(*e);
+    }
+    if(const auto e = CAP_COMPACT(options.compactIdle, options.compactDeadPercent)){
         throw std::invalid_argument(*e);
     }
 
@@ -101,11 +105,18 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
 }
 
 
-Supervise::~Supervise() = default; //here, where SwiftSearch is a complete type
+//here, where SwiftSearch is a complete type. The compactor uses _main, so it goes before any member does
+Supervise::~Supervise(){
+    stopCompactor();
+}
 
 
 std::expected<std::uint16_t, int> Supervise::start(){
-    return _server->start();
+    const auto port = _server->start();
+    if(port.has_value() && !_compactor.joinable()){
+        _compactor = std::thread([this]{ compactorLoop(); });
+    }
+    return port;
 }
 
 void Supervise::wait(){
@@ -113,6 +124,7 @@ void Supervise::wait(){
 }
 
 void Supervise::stop(){
+    stopCompactor();
     _server->stop();
 }
 
@@ -303,6 +315,114 @@ Supervise::Error Supervise::CAP_MOVE(const std::size_t percent){
 }
 
 
+Supervise::Error Supervise::CAP_COMPACT(const std::chrono::seconds idle, const std::size_t dead_percent){
+    if(idle < std::chrono::seconds::zero() || idle > MAX_COMPACT_IDLE){
+        return "compact idle must be 0 (off) to " + std::to_string(MAX_COMPACT_IDLE.count()) + " seconds";
+    }
+    if(dead_percent == 0 || dead_percent > 100){
+        return std::string("compact dead percent must be 1 to 100");
+    }
+    {
+        std::lock_guard<std::mutex> lock(_limits_mtx);
+        _limits.compactIdleSecs = static_cast<std::uint64_t>(idle.count());
+        _limits.compactDeadPercent = dead_percent;
+    }
+    _compactor_cv.notify_all(); //a shorter idle time takes effect now, not after the wait already running
+    if(idle == std::chrono::seconds::zero()){
+        note("automatic compaction off", Logger::MED);
+    }else{
+        note("compaction set to run after " + std::to_string(idle.count()) + "s idle, on segments at least "
+             + std::to_string(dead_percent) + "% dead", Logger::MED);
+    }
+    return std::nullopt;
+}
+
+
+/* COMPACTION ------------------------------------------------------------------------- */
+
+std::optional<swiftsearch::CompactReport> Supervise::compactIfIdle(const std::chrono::steady_clock::time_point now){
+    const Limits caps = limits();
+    if(caps.compactIdleSecs == 0){
+        return std::nullopt; //switched off
+    }
+    if(now - _main->lastActivity() < std::chrono::seconds(caps.compactIdleSecs)){
+        return std::nullopt; //not idle long enough
+    }
+    if(_main->deadBytes() == 0){
+        return std::nullopt; //nothing has been overwritten or deleted, so nothing to win back
+    }
+
+    std::lock_guard<std::mutex> lock(_compact_run_mtx);
+    const std::uint64_t since = _main->activityCount();
+    if(_compacted_at == since){
+        return std::nullopt; //the last run finished and nothing has happened since
+    }
+    const auto report = _main->compact(caps.compactDeadPercent, [this, since]{
+        return _stopping.load() || _main->activityCount() != since;
+    });
+    if(!report.has_value()){
+        _compacted_at = since; //a full disk will still be full in 30 seconds; wait for new work to try again
+        note("compaction failed: " + report.error(), Logger::HIGH);
+        return std::nullopt;
+    }
+    for(const auto& problem : report->problems){
+        note("compaction: " + problem, Logger::HIGH);
+    }
+    const std::string removed = std::to_string(report->segmentsRemoved)
+        + (report->segmentsRemoved == 1 ? " segment" : " segments");
+    if(report->stopped){
+        note("compaction stopped for a request after removing " + removed
+             + "; it picks up the next idle window", Logger::MED);
+    }else{
+        _compacted_at = since;
+        if(report->segmentsRemoved > 0){
+            note("compaction removed " + removed + " (" + std::to_string(report->bytesRemoved)
+                 + " bytes), copying " + std::to_string(report->bytesCopied) + " bytes forward", Logger::MED);
+        }
+    }
+    return *report;
+}
+
+
+void Supervise::compactorLoop(){
+    using namespace std::chrono_literals;
+    std::unique_lock<std::mutex> lock(_compactor_mtx);
+    while(!_compactor_stop){
+        //wake often enough to start within a quarter of the idle time of it coming due
+        const std::chrono::seconds idle(limits().compactIdleSecs);
+        const auto every = idle == 0s ? 30s : std::clamp<std::chrono::seconds>(idle / 4, 1s, 30s);
+        _compactor_cv.wait_for(lock, every);
+        if(_compactor_stop){
+            break;
+        }
+        lock.unlock();
+        try{
+            (void)compactIfIdle(std::chrono::steady_clock::now());
+        }catch(const std::exception& e){
+            note(std::string("compaction failed: ") + e.what(), Logger::HIGH);
+        }
+        lock.lock();
+    }
+}
+
+
+void Supervise::stopCompactor() noexcept{
+    _stopping.store(true);
+    {
+        std::lock_guard<std::mutex> lock(_compactor_mtx);
+        _compactor_stop = true;
+    }
+    _compactor_cv.notify_all();
+    try{
+        if(_compactor.joinable()){
+            _compactor.join();
+        }
+    }catch(const std::exception& e){
+        note(std::string("could not join the compactor: ") + e.what(), Logger::HIGH);
+    }
+}
+
+
 Supervise::Limits Supervise::limits() const{
     std::lock_guard<std::mutex> lock(_limits_mtx);
     return _limits;
@@ -330,13 +450,19 @@ http::Response Supervise::adminGet() const{
         .field("cpu_low", u64(now.cpuLow))
         .field("request_threads", u64(_request_threads))
         .field("keys", u64(_main->Size()))
+        .field("dead_bytes", _main->deadBytes())
+        .field("disk_bytes", _main->diskBytes())
+        .field("segments", u64(_main->segmentCount()))
+        .field("compact_idle", now.compactIdleSecs)
+        .field("compact_dead_percent", u64(now.compactDeadPercent))
         .endObj();
     return http::Response::json(http::Status::Ok, std::move(out));
 }
 
 
 http::Response Supervise::adminPut(const std::string_view query){
-    constexpr std::string_view KNOWN[] = {"mem", "move_percent", "cpu_threads", "cpu_high", "cpu_low"};
+    constexpr std::string_view KNOWN[] = {"mem", "move_percent", "cpu_threads", "cpu_high", "cpu_low",
+                                          "compact_idle", "compact_dead_percent"};
     if(const auto bad = unknownParam(query, KNOWN)){
         return http::Response::error(http::Status::BadRequest, "unknown parameter: " + std::string(*bad));
     }
@@ -346,14 +472,23 @@ http::Response Supervise::adminPut(const std::string_view query){
     const auto threads = numberParam(query, "cpu_threads", false);
     const auto high = numberParam(query, "cpu_high", false);
     const auto low = numberParam(query, "cpu_low", false);
-    for(const auto* p : {&mem, &move, &threads, &high, &low}){
+    const auto dead = numberParam(query, "compact_dead_percent", false);
+    for(const auto* p : {&mem, &move, &threads, &high, &low, &dead}){
         if(!p->has_value()){
             return http::Response::error(http::Status::BadRequest, p->error());
         }
     }
-    if(!*mem && !*move && !*threads && !*high && !*low){
+    std::optional<std::chrono::seconds> idle;
+    if(const auto raw = http::queryParam(query, "compact_idle")){
+        idle = parseDuration(*raw);
+        if(!idle.has_value()){
+            return http::Response::error(http::Status::BadRequest, "bad ?compact_idle");
+        }
+    }
+    if(!*mem && !*move && !*threads && !*high && !*low && !*dead && !idle){
         return http::Response::error(http::Status::BadRequest,
-            "nothing to change: give ?mem=, ?move_percent=, ?cpu_threads=, ?cpu_high= or ?cpu_low=");
+            "nothing to change: give ?mem=, ?move_percent=, ?cpu_threads=, ?cpu_high=, ?cpu_low=, "
+            "?compact_idle= or ?compact_dead_percent=");
     }
 
     //everything is checked before anything is applied, so a bad request changes nothing.
@@ -373,6 +508,15 @@ http::Response Supervise::adminPut(const std::string_view query){
     if(next_low >= next_high || next_high > 100){
         return http::Response::error(http::Status::BadRequest, "cpu thresholds need low < high <= 100");
     }
+    const std::chrono::seconds next_idle = idle.value_or(std::chrono::seconds(now.compactIdleSecs));
+    const std::uint64_t next_dead = dead->value_or(now.compactDeadPercent);
+    if(next_idle > MAX_COMPACT_IDLE){
+        return http::Response::error(http::Status::BadRequest,
+            "compact_idle must be 0 (off) to " + std::to_string(MAX_COMPACT_IDLE.count()) + " seconds");
+    }
+    if(next_dead == 0 || next_dead > 100){
+        return http::Response::error(http::Status::BadRequest, "compact_dead_percent must be 1 to 100");
+    }
 
     //the pool swap is the one step that can still fail, so it goes first
     if(*threads || *high || *low){
@@ -389,6 +533,9 @@ http::Response Supervise::adminPut(const std::string_view query){
     }
     if(*move){
         (void)CAP_MOVE(next_move); //range checked above
+    }
+    if(idle || *dead){
+        (void)CAP_COMPACT(next_idle, static_cast<std::size_t>(next_dead)); //range checked above
     }
     return adminGet();
 }
@@ -423,6 +570,29 @@ std::optional<std::uint64_t> Supervise::parseByteSize(std::string_view s) noexce
         return std::nullopt;
     }
     return *n * scale;
+}
+
+
+std::optional<std::chrono::seconds> Supervise::parseDuration(std::string_view s) noexcept{
+    std::uint64_t scale = 1;
+    if(!s.empty()){
+        bool suffix = true;
+        switch(s.back()){
+            case 's': case 'S': scale = 1; break;
+            case 'm': case 'M': scale = 60; break;
+            case 'h': case 'H': scale = 60 * 60; break;
+            default: suffix = false; break;
+        }
+        if(suffix){
+            s.remove_suffix(1);
+        }
+    }
+    constexpr std::uint64_t MAX = static_cast<std::uint64_t>(std::numeric_limits<std::chrono::seconds::rep>::max());
+    const auto n = http::parseDecimal(s);
+    if(!n.has_value() || *n > MAX / scale){
+        return std::nullopt;
+    }
+    return std::chrono::seconds(static_cast<std::chrono::seconds::rep>(*n * scale));
 }
 
 
