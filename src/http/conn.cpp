@@ -170,7 +170,7 @@ void Connection::parseLoop(Clock::time_point now) {
             // method is rejected by the parser, which has not chosen a route
             // yet -- so this is the methods the SERVER implements at all, which
             // is the honest answer from here and still actionable.
-            r.set("Allow", "GET, HEAD, PUT, DELETE");
+            r.set("Allow", "GET, HEAD, PUT, DELETE, POST");
         }
         queue(std::move(r), now);
         _state = ConnState::Closing;

@@ -14,6 +14,7 @@
  *   DELETE /v1/blobs/<key>     204, or 404 if absent
  *   GET    /v1/boxes/<key>     JSON: box metadata plus one page of children
  *   PUT    /v1/boxes/<key>     box metadata, from headers
+ *   POST   /v1/prepare/<key>   load the value into memory; 204, 404, or 413
  *   GET    /healthz            liveness, for a supervisor
  */
 
@@ -26,6 +27,7 @@ namespace swiftsearch::http {
 
 inline constexpr std::string_view BLOBS_PREFIX = "/v1/blobs/";
 inline constexpr std::string_view BOXES_PREFIX = "/v1/boxes/";
+inline constexpr std::string_view PREPARE_PREFIX = "/v1/prepare/";
 inline constexpr std::string_view HEALTH_PATH = "/healthz";
 
 /// Header names, spelled once. A typo in one of these is a header silently

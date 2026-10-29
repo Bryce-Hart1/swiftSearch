@@ -48,6 +48,7 @@ add_library(swiftSearch_core OBJECT
     src/http/routes.cpp
     src/http/conn.cpp
     src/http/server.cpp
+    src/supervise.cpp
 )
 target_include_directories(swiftSearch_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(swiftSearch_core PUBLIC Threads::Threads PRIVATE swiftSearch_warnings)

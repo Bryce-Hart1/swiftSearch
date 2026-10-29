@@ -8,6 +8,7 @@
 #include "threading.hpp"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <charconv>
 #include <chrono>
@@ -63,6 +64,14 @@ class SwiftSearch{
     static constexpr std::uint64_t DEFAULT_SEGMENT_LIMIT = 256ull * 1024ull * 1024ull;
     static constexpr std::size_t DEFAULT_CACHE_BUDGET = 64ull * 1024ull * 1024ull;
     static constexpr const char* META_FILE = "store.meta"; //holds the StartDate
+
+
+    public:
+    /// A value and the type it was stored as, which is what GetTyped hands back.
+    struct Value{
+        swiftsearch::Bytes bytes;
+        VAR_TYPE type = VAR_TYPE::BIN;
+    };
 
 
     private:
@@ -212,7 +221,7 @@ class SwiftSearch{
     private:
     fsPath _store_path;
     std::uint64_t _segment_limit;
-    std::size_t _cache_budget;
+    std::atomic<std::size_t> _cache_budget; //read without _cache_mtx; setCacheBudget changes it under the lock
 
     /** @brief SEGMENTS ---------------------------------------------- */
     std::map<std::uint32_t, std::shared_ptr<LockableFile>> _segments; //newest = highest id
@@ -225,7 +234,7 @@ class SwiftSearch{
 
     /** @brief CACHE ---------------------------------------------- */
     //which keys are cached in RAM, oldest first. Evicted from the front once over budget
-    std::mutex _cache_mtx;
+    mutable std::mutex _cache_mtx;
     std::deque<std::pair<std::string, std::size_t>> _cache_fifo;
     std::size_t _cache_bytes = 0;
 
@@ -416,7 +425,8 @@ class SwiftSearch{
             const auto& envelope = decoded->envelope;
             if(envelope.isTombstone()){
                 _lookup.erase(envelope.key());
-            }else if(!_lookup.putDisk(envelope.key(), swiftsearch::DiskLocation{seg.id(), at, *total})){
+            }else if(!_lookup.putDisk(envelope.key(), swiftsearch::DiskLocation{seg.id(), at, *total},
+                                      envelope.header().var_type)){
                 _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
                     + ": record with an empty key, skipped");
             }
@@ -492,9 +502,9 @@ class SwiftSearch{
      * entry that points at bytes which never reached disk is a lie that a crash
      * exposes. See the CRASH BEHAVIOR note in find.hpp.
      */
-    Error putInLookupTable(const std::string& name, const swiftsearch::DiskLocation& where){
+    Error putInLookupTable(const std::string& name, const swiftsearch::DiskLocation& where, const VAR_TYPE type){
         try{
-            if(!_lookup.putDisk(name, where)){
+            if(!_lookup.putDisk(name, where, type)){
                 return BAD("empty keys cannot be stored");
             }
         }catch(const std::exception& e){
@@ -510,6 +520,18 @@ class SwiftSearch{
     }
 
 
+    //caller holds _cache_mtx. Pops the oldest cached keys into `victims` until the cache fits its
+    //budget, leaving at least `keep` entries. The caller evicts the victims after letting go of the lock
+    void evictOverBudgetLocked(std::vector<std::string>& victims, const std::size_t keep){
+        const std::size_t budget = _cache_budget.load();
+        while(_cache_bytes > budget && _cache_fifo.size() > keep){
+            _cache_bytes -= _cache_fifo.front().second;
+            victims.push_back(std::move(_cache_fifo.front().first));
+            _cache_fifo.pop_front();
+        }
+    }
+
+
     //note a key was just cached and push the oldest cached keys out once over budget
     void rememberCached(const std::string& key, const std::size_t bytes){
         std::vector<std::string> victims;
@@ -517,11 +539,7 @@ class SwiftSearch{
             std::lock_guard<std::mutex> lock(_cache_mtx);
             _cache_fifo.emplace_back(key, bytes);
             _cache_bytes += bytes;
-            while(_cache_bytes > _cache_budget && _cache_fifo.size() > 1){
-                _cache_bytes -= _cache_fifo.front().second;
-                victims.push_back(std::move(_cache_fifo.front().first));
-                _cache_fifo.pop_front();
-            }
+            evictOverBudgetLocked(victims, 1); //never the value that just arrived
         }
         for(const auto& victim : victims){
             _lookup.evict(victim);
@@ -529,13 +547,20 @@ class SwiftSearch{
     }
 
 
-    std::optional<swiftsearch::Bytes> thread_gets(const std::string& item){
+    //a record's payload size from its length in the table: whatever is not header, key or trailer
+    static std::uint64_t payloadSize(const std::size_t key_size, const swiftsearch::DiskLocation& where){
+        const std::uint64_t fixed = swiftsearch::RECORD_OVERHEAD + key_size;
+        return where.length > fixed ? where.length - fixed : 0;
+    }
+
+
+    std::optional<Value> thread_gets(const std::string& item){
         const auto entry = location_in_lookup(item);
         if(!entry.has_value()){
             return std::nullopt;
         }
         if(entry->inMemory()){
-            return *entry->memory; //copy out; the shared buffer stays in the table
+            return Value{*entry->memory, entry->type}; //copy out; the shared buffer stays in the table
         }
         if(!entry->onDisk()){
             return std::nullopt;
@@ -543,10 +568,11 @@ class SwiftSearch{
 
         //on disk only. a miss here means the key is known but the read failed
         auto bytes = find_and_read(item, *entry->disk);
-        if(bytes.has_value()){
-            cacheLoaded(item, *entry->disk, *bytes);
+        if(!bytes.has_value()){
+            return std::nullopt;
         }
-        return bytes;
+        cacheLoaded(item, *entry->disk, *bytes);
+        return Value{std::move(*bytes), entry->type};
     }
 
 
@@ -554,7 +580,7 @@ class SwiftSearch{
     //@return false if it did not go in: too big for the budget, already cached, or the key was
     //overwritten or relocated while it was being read (all harmless, the caller still has the bytes)
     bool cacheLoaded(const std::string& key, const swiftsearch::DiskLocation& where, const swiftsearch::Bytes& bytes){
-        if(bytes.size() > _cache_budget){
+        if(bytes.size() > _cache_budget.load()){
             return false;
         }
         if(!_lookup.cache(key, where, std::make_shared<const swiftsearch::Bytes>(bytes))){
@@ -579,9 +605,7 @@ class SwiftSearch{
         }
 
         //the payload size is exact from the table, so an impossible request fails before any disk read
-        const std::uint64_t fixed = swiftsearch::RECORD_OVERHEAD + key.size();
-        const std::uint64_t payload = entry->disk->length > fixed ? entry->disk->length - fixed : 0;
-        if(payload > _cache_budget){
+        if(payloadSize(key.size(), *entry->disk) > _cache_budget.load()){
             return BAD("value is larger than the memory budget");
         }
 
@@ -657,7 +681,16 @@ class SwiftSearch{
 
     /// Runs the read on the pool and waits for it. Don't call this from inside a pool task.
     std::optional<swiftsearch::Bytes> Get(const std::string_view& item){
-        std::future<std::optional<swiftsearch::Bytes>> answer;
+        auto value = GetTyped(item);
+        if(!value.has_value()){
+            return std::nullopt;
+        }
+        return std::move(value->bytes);
+    }
+
+    /// Get, plus the type the value was stored as. Same pool rule as Get.
+    std::optional<Value> GetTyped(const std::string_view& item){
+        std::future<std::optional<Value>> answer;
         {
             std::shared_lock<std::shared_mutex> lock(_pool_mtx);
             answer = _pool->submit([this, key = std::string(item)]{ return thread_gets(key); });
@@ -666,7 +699,8 @@ class SwiftSearch{
     }
 
     /// Durable when this returns GOOD: the record is on disk and fsync'd.
-    Error Put(const std::string& name, const swiftsearch::Bytes& _data,
+    /// Takes the value by value so a caller that is done with its buffer can move it in.
+    Error Put(const std::string& name, swiftsearch::Bytes _data,
               const VAR_TYPE type = VAR_TYPE::BIN){
         if(!swiftsearch::keys::is_valid(name)){
             return BAD("invalid key");
@@ -676,14 +710,14 @@ class SwiftSearch{
             if(!secs.has_value()){
                 return BAD("the store is more than 136 years past its start date");
             }
-            const auto record = swiftsearch::Envelope::value(name, _data, *secs, type).encode();
+            const auto record = swiftsearch::Envelope::value(name, std::move(_data), *secs, type).encode();
 
             std::lock_guard<std::mutex> lock(_write_mtx);
             const auto where = appendLocked(record);
             if(!where.has_value()){
                 return BAD(where.error());
             }
-            return putInLookupTable(name, *where);
+            return putInLookupTable(name, *where, type);
         }catch(const std::length_error&){
             return BAD("key or value is over the size limit");
         }catch(const std::exception& e){
@@ -747,15 +781,27 @@ class SwiftSearch{
 
     /**
      * Retunes how hard the pool works the CPU: it backs off at `hi` percent busy and
-     * ramps up again below `low`. Takes effect by replacing the pool, which finishes
-     * the reads already queued first.
+     * ramps up again below `low`. Keeps the current thread count. Takes effect by
+     * replacing the pool, which finishes the reads already queued first.
      */
     Error scaleDownCpu(const std::size_t& hi, const std::size_t& low){
+        return setCpuLimits(cpuThreads(), hi, low);
+    }
+
+
+    /**
+     * Caps the pool at `max_threads` workers (0 = one per hardware thread) and sets the
+     * busy percentages it backs off at (`hi`) and ramps up below (`low`). The thread cap
+     * holds on every platform; the percentages only act where the pool can read CPU usage,
+     * which is Linux (/proc/stat). Takes effect by replacing the pool, like scaleDownCpu.
+     */
+    Error setCpuLimits(const std::size_t max_threads, const std::size_t& hi, const std::size_t& low){
         if(hi <= low || hi > 100){
             return BAD("values for scaling are out of range");
         }
         try{
             swiftsearch::ThreadPoolOptions options;
+            options.maxThreads = max_threads;
             options.highBusyPercent = static_cast<double>(hi);
             options.lowBusyPercent = static_cast<double>(low);
             auto fresh = std::make_unique<swiftsearch::AdaptiveThreadPool>(options);
@@ -784,6 +830,59 @@ class SwiftSearch{
         }
         return entry->residency();
     }
+
+    /// Worker threads in the pool right now (the resolved count, never 0).
+    std::size_t cpuThreads() const{
+        std::shared_lock<std::shared_mutex> lock(_pool_mtx);
+        return _pool->maxThreads();
+    }
+
+
+    /**
+     * Changes how many bytes of cached values the store may hold. If the cache is over the
+     * new budget the oldest cached values are dropped right away. 0 turns caching off.
+     * Only cached copies are dropped: every value stays on disk, nothing is lost.
+     */
+    void setCacheBudget(const std::size_t bytes){
+        std::vector<std::string> victims;
+        {
+            std::lock_guard<std::mutex> lock(_cache_mtx);
+            _cache_budget.store(bytes);
+            evictOverBudgetLocked(victims, 0);
+        }
+        for(const auto& victim : victims){
+            _lookup.evict(victim);
+        }
+    }
+
+    std::size_t cacheBudget() const noexcept{
+        return _cache_budget.load();
+    }
+
+    /// Bytes counted against the cache budget. Can briefly include values that were since
+    /// overwritten, until they reach the front of the queue and are dropped.
+    std::size_t cacheBytes() const{
+        std::lock_guard<std::mutex> lock(_cache_mtx);
+        return _cache_bytes;
+    }
+
+
+    /// Size of a key's value in bytes, taken from the table, so nothing is read from disk.
+    /// nullopt if the key does not exist.
+    std::optional<std::uint64_t> valueSize(const std::string_view& key) const{
+        const auto entry = _lookup.lookup(key);
+        if(!entry.has_value()){
+            return std::nullopt;
+        }
+        if(entry->inMemory()){
+            return entry->memory->size();
+        }
+        if(!entry->onDisk()){
+            return std::nullopt;
+        }
+        return payloadSize(key.size(), *entry->disk);
+    }
+
 
     /// Number of live keys.
     std::size_t Size() const{

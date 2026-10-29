@@ -49,6 +49,9 @@ enum class StoreStatus : std::uint8_t {
     Unsupported,
     /// Anything else: I/O failure, a bug. Deliberately vague to a client.
     Internal,
+    /// The value exists but is bigger than this operation is allowed to take
+    /// on -- a prepare that would push too much of the cache out.
+    TooLarge,
 };
 
 std::string_view describe(StoreStatus s) noexcept;
@@ -123,6 +126,10 @@ struct StoreBinding {
 
     std::function<StoreResult<Stored>(std::string_view key,
                                       const BoxMeta& meta)> putBox;
+
+    /// Load a key's value into memory so the next GET is served from RAM. The
+    /// value stays on disk; this only warms the cache.
+    std::function<StoreResult<void>(std::string_view key)> prepare;
 };
 
 }  // namespace swiftsearch::http

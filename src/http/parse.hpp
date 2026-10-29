@@ -68,6 +68,7 @@ enum class Method : std::uint8_t {
     Head,
     Put,
     Delete,
+    Post,
 };
 
 std::string_view methodName(Method m) noexcept;

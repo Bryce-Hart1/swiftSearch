@@ -48,6 +48,7 @@ Method methodOf(std::string_view t) noexcept {
     if (t == "HEAD") return Method::Head;
     if (t == "PUT") return Method::Put;
     if (t == "DELETE") return Method::Delete;
+    if (t == "POST") return Method::Post;
     return Method::Unknown;
 }
 
@@ -76,6 +77,7 @@ std::string_view methodName(Method m) noexcept {
         case Method::Head: return "HEAD";
         case Method::Put: return "PUT";
         case Method::Delete: return "DELETE";
+        case Method::Post: return "POST";
         case Method::Unknown: return "";
     }
     return "";

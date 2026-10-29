@@ -84,7 +84,6 @@ struct StartDate{
     /// The UTC calendar fields of `tp`.
     static StartDate fromTimePoint(const sys_seconds tp){
         namespace chr = std::chrono;
-        using sc8 = static_cast<std::uint8_t>;
         const chr::sys_days today = chr::floor<chr::days>(tp);
         const chr::year_month_day ymd{today};
         const chr::hh_mm_ss<chr::seconds> hms{tp - today};

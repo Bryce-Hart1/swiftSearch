@@ -13,6 +13,7 @@ namespace {
 
 constexpr std::string_view ALLOW_BLOBS = "GET, HEAD, PUT, DELETE";
 constexpr std::string_view ALLOW_BOXES = "GET, PUT";
+constexpr std::string_view ALLOW_PREPARE = "POST";
 
 /// Every way a URL can fail to be a key, mapped once. 414 is distinguished from
 /// 400 because "your key is too long" is actionable and "bad request" is not.
@@ -196,6 +197,13 @@ Response deleteBlob(const StoreBinding& store, std::string_view key) {
     return Response::empty(Status::NoContent);
 }
 
+Response prepareBlob(const StoreBinding& store, std::string_view key) {
+    if (!store.prepare) return notImplemented("prepare");
+    auto done = store.prepare(key);
+    if (!done) return Response::error(statusFor(done.error()), describe(done.error()));
+    return Response::empty(Status::NoContent);
+}
+
 // --- boxes -----------------------------------------------------------------
 
 Response getBox(const StoreBinding& store, std::string_view key,
@@ -345,6 +353,7 @@ std::string_view describe(StoreStatus s) noexcept {
         case StoreStatus::Corrupt: return "stored record is damaged";
         case StoreStatus::Unsupported: return "stored record uses a feature this build lacks";
         case StoreStatus::Internal: return "internal store error";
+        case StoreStatus::TooLarge: return "value is too large for this operation";
     }
     return "unknown";
 }
@@ -358,6 +367,7 @@ Status statusFor(StoreStatus s) noexcept {
         case StoreStatus::Corrupt: return Status::InternalServerError;
         case StoreStatus::Unsupported: return Status::NotImplemented;
         case StoreStatus::Internal: return Status::InternalServerError;
+        case StoreStatus::TooLarge: return Status::ContentTooLarge;
     }
     return Status::InternalServerError;
 }
@@ -377,14 +387,22 @@ Response route(const Request& req, const StoreBinding& store,
 
     const bool isBlob = t.path.starts_with(BLOBS_PREFIX);
     const bool isBox = t.path.starts_with(BOXES_PREFIX);
-    if (!isBlob && !isBox) {
+    const bool isPrepare = t.path.starts_with(PREPARE_PREFIX);
+    if (!isBlob && !isBox && !isPrepare) {
         return Response::error(Status::NotFound, "no such route");
     }
 
-    const std::string_view prefix = isBlob ? BLOBS_PREFIX : BOXES_PREFIX;
+    const std::string_view prefix = isBlob ? BLOBS_PREFIX
+                                  : isBox  ? BOXES_PREFIX
+                                           : PREPARE_PREFIX;
     auto key = keyFromPath(t.path, prefix);
     if (!key) {
         return Response::error(statusForUrl(key.error()), describe(key.error()));
+    }
+
+    if (isPrepare) {
+        if (req.method != Method::Post) return methodNotAllowed(ALLOW_PREPARE);
+        return prepareBlob(store, *key);
     }
 
     if (isBlob) {
@@ -393,6 +411,7 @@ Response route(const Request& req, const StoreBinding& store,
             case Method::Head: return getBlob(req, store, *key);
             case Method::Put: return putBlob(req, store, *key, limits);
             case Method::Delete: return deleteBlob(store, *key);
+            case Method::Post:
             case Method::Unknown: break;
         }
         return methodNotAllowed(ALLOW_BLOBS);

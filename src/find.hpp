@@ -59,6 +59,7 @@
 
 #include "bstd/data_structure/threadsafe/tsTrie.hpp"
 #include "bytes.hpp"
+#include "var_type.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -95,6 +96,9 @@ enum class Residency : std::uint8_t {
 struct Entry {
     std::optional<DiskLocation> disk;
     std::shared_ptr<const Bytes> memory;
+    /// What the value was stored as. Kept here, not only in the record, so a value
+    /// served from the cache still knows it is an image rather than raw bytes.
+    VAR_TYPE type = VAR_TYPE::BIN;
 
     bool inMemory() const noexcept { return memory != nullptr; }
     bool onDisk() const noexcept { return disk.has_value(); }
@@ -198,11 +202,12 @@ public:
     /// Key whose value is already on disk and not cached, e.g. while rebuilding
     /// the index from the segments at startup.
     /// @return false for an empty key.
-    bool putDisk(std::string_view key, const DiskLocation& where){
+    bool putDisk(std::string_view key, const DiskLocation& where,
+                 const VAR_TYPE type = VAR_TYPE::BIN){
         if(key.empty()) return false;
 
         std::lock_guard w(_write);
-        publish(std::string(key), Entry{where, nullptr});
+        publish(std::string(key), Entry{where, nullptr, type});
         return true;
     }
 
