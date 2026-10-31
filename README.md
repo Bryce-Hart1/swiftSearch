@@ -158,6 +158,7 @@ so anyone on the internet could change the limits. See the admin section of
 |---|---|
 | `<store>/segment-NNNNNN.dat` | The data. Records are appended; compaction replaces old files with new ones. |
 | `<store>/store.meta` | When the store was created. Record timestamps count from it, so don't delete it. |
+| `<store>/store.lock` | Locked while a server has the store open, so a second server on the same folder refuses to start instead of corrupting it. The kernel releases it when the process exits, even after a crash; the file staying behind is normal. |
 | `./swiftSearchLogs` | The log, in the folder you started the server from: replay warnings, limit changes, compaction runs, errors. |
 
 To back a store up, stop the server and copy the whole store folder.
@@ -185,7 +186,7 @@ and delete everything stored.
 |---|---|
 | `0` | Stopped cleanly |
 | `1` | Bad command or option |
-| `2` | The store folder could not be opened or read |
+| `2` | The store folder could not be opened or read, or another swiftSearch already has it open |
 | `3` | The server could not start, e.g. the port is already in use |
 
 ---

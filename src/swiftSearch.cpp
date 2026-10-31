@@ -34,6 +34,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <system_error>
 #include <unistd.h>
@@ -70,6 +71,7 @@ class SwiftSearch{
     static constexpr std::uint64_t DEFAULT_SEGMENT_LIMIT = 256ull * 1024ull * 1024ull;
     static constexpr std::size_t DEFAULT_CACHE_BUDGET = 64ull * 1024ull * 1024ull;
     static constexpr const char* META_FILE = "store.meta"; //holds the StartDate
+    static constexpr const char* LOCK_FILE = "store.lock"; //flock'd while a process has the store open
     //compaction copies records forward this many bytes at a time: one append and one fsync per
     //batch, and the most a client write waits on it
     static constexpr std::uint64_t COMPACT_BATCH_BYTES = 4ull * 1024ull * 1024ull;
@@ -233,8 +235,51 @@ class SwiftSearch{
         return fresh;
     }
 
+
+    /**
+     * An exclusive flock on store.lock in the store folder, held for as long as the store
+     * is open. Two processes appending to the same segments would corrupt them, and
+     * replay truncating a "torn" tail that another process is still writing would be
+     * worse, so a second open of the same folder is refused before it reads anything.
+     *
+     * The kernel drops the lock when the descriptor closes, including when the process
+     * dies by SIGKILL, so a crash never leaves a stale lock behind and the file itself
+     * can stay on disk. flock locks belong to the open file, so a second SwiftSearch in
+     * the same process is refused too.
+     */
+    class StoreLock{
+        int _fd = -1;
+
+        public:
+        explicit StoreLock(const fsPath& folder){
+            const fsPath file = folder / LOCK_FILE;
+            _fd = ::open(file.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+            if(_fd < 0){
+                throw std::system_error(errno, std::generic_category(), "open " + file.string());
+            }
+            if(::flock(_fd, LOCK_EX | LOCK_NB) != 0){
+                const int e = errno;
+                ::close(_fd);
+                if(e == EWOULDBLOCK){
+                    throw std::runtime_error(folder.string() + " is already open in another swiftSearch process");
+                }
+                throw std::system_error(e, std::generic_category(), "lock " + file.string());
+            }
+        }
+
+        ~StoreLock(){
+            if(_fd >= 0){
+                ::close(_fd); //releases the lock
+            }
+        }
+
+        StoreLock(const StoreLock&) = delete;
+        StoreLock& operator=(const StoreLock&) = delete;
+    };
+
     private:
     fsPath _store_path;
+    StoreLock _lock; //right after the path: taken before anything reads or writes the folder, dropped last
     std::uint64_t _segment_limit;
     std::atomic<std::size_t> _cache_budget; //read without _cache_mtx; setCacheBudget changes it under the lock
 
@@ -937,6 +982,7 @@ class SwiftSearch{
     explicit SwiftSearch(const fsPath& path, const std::uint64_t segment_limit = DEFAULT_SEGMENT_LIMIT,
     const std::size_t cache_budget = DEFAULT_CACHE_BUDGET): 
     _store_path(createDatabaseFolder(path)),
+    _lock(_store_path),
     _segment_limit(segment_limit), 
     _cache_budget(cache_budget), 
     _pool(std::make_unique<swiftsearch::AdaptiveThreadPool>()),
