@@ -30,11 +30,12 @@ inline bool syncDescriptor(const int fd) noexcept {
 
 /// Write to a temp file, fsync it, rename it over `file`, then fsync the folder.
 /// After a crash `file` holds the old content or the new content, never a mixture.
+/// `mode` is the new file's permissions (before the umask); secrets pass 0600.
 /// @return false if any step failed; the temp file is removed and `file` is untouched
 inline bool writeFileAtomically(const std::filesystem::path& file,
-                                std::span<const std::uint8_t> bytes) {
+                                std::span<const std::uint8_t> bytes, const mode_t mode = 0644) {
     const std::filesystem::path temp = file.string() + ".tmp";
-    const int fd = ::open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+    const int fd = ::open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, mode);
     if (fd < 0) {
         return false;
     }

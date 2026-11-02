@@ -5,6 +5,10 @@
  * --store and puts the HTTP dock (src/http/) in front of it. Everything stored
  * is on disk and survives a restart.
  *
+ * `key add|list|remove` manages the access keys every request needs (access.hpp).
+ * It touches only <store>/access.keys, never the segments, so it is safe to run
+ * while a server has the store open; the server sees the change within a second.
+ *
  * `list` is still unbound, so box listings answer 501 until there is a prefix
  * scan behind them.
  *
@@ -18,11 +22,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <filesystem>
 #include <print>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
+#include "access.hpp"
 #include "constants.hpp"
 #include "http/routes.hpp"
 #include "http/server.hpp"
@@ -50,8 +56,16 @@ void onSignal(int) {
 void usage() {
     using namespace std;
     println(cout, "usage: swiftSearch serve [options]");
+    println(cout, "       swiftSearch key add [--store DIR] [--access read|write|admin] [--name NAME]");
+    println(cout, "       swiftSearch key list [--store DIR]");
+    println(cout, "       swiftSearch key remove ID [--store DIR]");
     println(cout, "");
     println(cout, "  serve                  run the store behind the HTTP dock");
+    println(cout, "  key add                make an access key and print it (once; only a salted hash is kept)");
+    println(cout, "                         --access defaults to write: read + PUT/DELETE/POST. admin adds");
+    println(cout, "                         /v1/admin/limits");
+    println(cout, "  key list               the keys in the store: id, access, name");
+    println(cout, "  key remove ID          revoke a key; a running server stops taking it within a second");
     println(cout, "");
     println(cout, "Options:");
     println(cout, "      --store DIR        folder the store lives in (default: swiftsearch_data)");
@@ -74,8 +88,9 @@ void usage() {
     println(cout, "  e.g. ?mem=128M&cpu_threads=4&compact_idle=5m. Leave it off behind a reverse proxy");
     println(cout, "  on the same machine: the proxy reaches this server from loopback for every client.");
     println(cout, "");
-    println(cout, "  The default bind address is loopback. There is NO authentication,");
-    println(cout, "  so --bind 0.0.0.0 exposes every stored blob to the whole network.");
+    println(cout, "  Every request except GET /healthz needs a key: Authorization: Bearer <key>.");
+    println(cout, "  Keys travel in the clear over plain HTTP, so anything past loopback needs TLS");
+    println(cout, "  in front (a reverse proxy) to keep them from being read off the wire.");
 }
 
 bool parseUint(std::string_view s, unsigned long& out) {
@@ -88,6 +103,104 @@ bool parseUint(std::string_view s, unsigned long& out) {
     }
     out = v;
     return true;
+}
+
+/// swiftSearch key add|list|remove [options]
+int keyCommand(int argc, char** argv) {
+    namespace fs = std::filesystem;
+    if (argc < 3) {
+        usage();
+        return EXIT_USAGE;
+    }
+    const std::string_view action = argv[2];
+    if (action != "add" && action != "list" && action != "remove") {
+        std::println(stderr, "unknown key command: {}", action);
+        return EXIT_USAGE;
+    }
+
+    fs::path store = SupervisorOptions{}.storePath;
+    std::string_view accessWanted = "write";
+    std::string name;
+    std::string_view id;
+    for (int i = 3; i < argc; ++i) {
+        const std::string_view a = argv[i];
+        if (a == "--store" && i + 1 < argc) {
+            store = argv[++i];
+        } else if (action == "add" && a == "--access" && i + 1 < argc) {
+            accessWanted = argv[++i];
+        } else if (action == "add" && a == "--name" && i + 1 < argc) {
+            name = argv[++i];
+        } else if (action == "remove" && id.empty() && !a.starts_with("-")) {
+            id = a;
+        } else {
+            std::println(stderr, "unknown or incomplete option for key {}: {}", action, a);
+            return EXIT_USAGE;
+        }
+    }
+
+    const fs::path file = store / KEYS_FILE;
+    auto keys = readKeys(file);
+    if (!keys) {
+        std::println(stderr, "{}: {}", file.string(), keys.error());
+        return EXIT_NO_PATH;
+    }
+
+    if (action == "list") {
+        if (keys->empty()) {
+            std::println("no access keys in {}", file.string());
+        }
+        for (const KeyEntry& k : *keys) {
+            std::println("{}  {:<5}  {}", k.id, accessName(k.access), k.name);
+        }
+        return EXIT_SUCCESS;
+    }
+
+    if (action == "add") {
+        const auto access = accessFromName(accessWanted);
+        if (!access) {
+            std::println(stderr, "--access must be read, write or admin");
+            return EXIT_USAGE;
+        }
+        if (!isValidKeyName(name)) {
+            std::println(stderr, "--name is at most 64 of A-Z a-z 0-9 . _ -");
+            return EXIT_USAGE;
+        }
+        std::error_code ec;
+        fs::create_directories(store, ec);
+        if (ec) {
+            std::println(stderr, "could not make {}: {}", store.string(), ec.message());
+            return EXIT_NO_PATH;
+        }
+        NewKey made = makeKey(*access, std::move(name), *keys);
+        keys->push_back(made.entry);
+        if (!writeKeys(file, *keys)) {
+            std::println(stderr, "could not write {}", file.string());
+            return EXIT_NO_PATH;
+        }
+        // The key alone on stdout, so KEY=$(swiftSearch key add) works; the rest on stderr.
+        std::println("{}", made.key);
+        std::println(stderr, "made {} key {} in {}", accessName(*access), made.entry.id, file.string());
+        std::println(stderr, "This is the only time it is shown: the store keeps only a salted hash of it.");
+        std::println(stderr, "Send it as the header  Authorization: Bearer <key>");
+        return EXIT_SUCCESS;
+    }
+
+    if (id.empty()) {
+        std::println(stderr, "key remove needs the id of the key, from `swiftSearch key list`");
+        return EXIT_USAGE;
+    }
+    const std::size_t before = keys->size();
+    std::erase_if(*keys, [id](const KeyEntry& k) { return k.id == id; });
+    if (keys->size() == before) {
+        std::println(stderr, "no key with id {} in {}", id, file.string());
+        return EXIT_USAGE;
+    }
+    if (!writeKeys(file, *keys)) {
+        std::println(stderr, "could not write {}", file.string());
+        return EXIT_NO_PATH;
+    }
+    std::println("removed key {}; a running server stops accepting it within a second", id);
+    return EXIT_SUCCESS;
 }
 
 int serve(int argc, char** argv) {
@@ -215,6 +328,13 @@ int serve(int argc, char** argv) {
         std::println("  admin route off (start with --admin to serve {})", Supervise::ADMIN_LIMITS_PATH);
     }
     std::println("");
+    if (supervisor->accessKeyCount() == 0) {
+        std::println("NO ACCESS KEYS: every request except /healthz gets 401. Make one with:");
+        std::println("  swiftSearch key add --store {}", storeShown);
+    } else {
+        std::println("access keys: {} in {} (every route but /healthz needs one)",
+                     supervisor->accessKeyCount(), supervisor->accessKeyFile().string());
+    }
     std::println("store: {}", storeShown);
     std::println("memory cap {} bytes, one prepare up to {}%, {} store threads",
                  caps.memCapBytes, caps.movePercent, caps.cpuThreads == 0 ? std::string("auto")
@@ -243,6 +363,7 @@ int main(int argc, char** argv) {
     if (argc >= 2) {
         const std::string_view command = argv[1];
         if (command == "serve") return serve(argc, argv);
+        if (command == "key") return keyCommand(argc, argv);
         if (command == "-h" || command == "--help") {
             usage();
             return EXIT_SUCCESS;

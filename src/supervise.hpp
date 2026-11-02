@@ -19,11 +19,21 @@
  *                 stop after the batch it is on; it resumes the next idle window.
  *   - GET/PUT /v1/admin/limits to read and change those caps while running.
  *
- * ADMIN IS OFF UNLESS ASKED FOR, AND LOOPBACK ONLY EVEN THEN. There is no
- * authentication, so the admin route only answers when options.admin is set AND
- * the server is bound to a loopback address. Loopback alone is not enough: a
- * reverse proxy on the same machine (castle+) connects from 127.0.0.1 on behalf
- * of anyone on the internet. When off it is a 404, and the caps can only be set
+ * EVERY REQUEST NEEDS AN ACCESS KEY, except GET /healthz. Keys live in
+ * <store>/access.keys as salted hashes (see access.hpp): a read key may GET and
+ * HEAD, a write key may also PUT, DELETE and POST, and only an admin key reaches
+ * the admin route. No key, or one not in the file, is a 401; a key that may not
+ * do this is a 403. The check runs twice: once on the reactor thread as soon as
+ * the head has arrived, so a refused upload is never read, and again in handle(),
+ * which is what tests drive and what keeps a future caller from skipping it.
+ *
+ * EVERY HASH IT HANDS OUT IS SALTED. ETag, X-SwiftSearch-Hash and the "hash"
+ * field are HMAC-SHA256 of the value keyed by <store>/store.salt, so they cannot
+ * be matched against a hash of a file someone already holds.
+ *
+ * ADMIN IS OFF UNLESS ASKED FOR, AND LOOPBACK ONLY EVEN THEN. On top of the admin
+ * key, the admin route only answers when options.admin is set AND the server is
+ * bound to a loopback address. When off it is a 404, and the caps can only be set
  * with flags at startup.
  *
  * Store errors are written to the Logger handed in and answered with a
@@ -49,6 +59,7 @@
 #include <thread>
 #include <vector>
 
+#include "access.hpp"
 #include "bstd/store/log.hpp"
 #include "compact.hpp"
 #include "http/message.hpp"
@@ -113,6 +124,8 @@ class Supervise{
     const std::size_t _request_threads; //resolved the way the server resolves it, for reporting
 
     std::unique_ptr<SwiftSearch> _main;
+    swiftsearch::StoreSalt _salt; //after _main, which holds the store lock while the salt is made
+    swiftsearch::AccessKeys _keys;
     swiftsearch::http::StoreBinding _binding;
 
     mutable std::mutex _limits_mtx; //serializes every CAP_* and guards _limits
@@ -139,6 +152,9 @@ class Supervise{
         std::span<const std::uint8_t> payload, VAR_TYPE type);
     swiftsearch::http::StoreResult<bool> DELETE(std::string_view key);
     swiftsearch::http::StoreResult<void> MOVE(std::string_view key);
+
+    //a 401 or 403 when the request's key may not do what it asks, nullopt when it may
+    std::optional<swiftsearch::http::Response> refuse(const swiftsearch::http::Request& req);
 
     swiftsearch::http::Response adminGet() const;
     swiftsearch::http::Response adminPut(std::string_view query);
@@ -176,7 +192,7 @@ class Supervise{
     /// Safe from any thread, a request handler, or a signal handler.
     void requestStop() noexcept;
 
-    /// Every request comes through here: the admin route first, the dock for the rest.
+    /// Every request comes through here: the key check, then the admin route, then the dock.
     /// Public so tests can drive it without a socket.
     swiftsearch::http::Response handle(const swiftsearch::http::Request& req);
 
@@ -216,6 +232,13 @@ class Supervise{
     std::uint64_t moveMaxBytes() const;
     bool adminEnabled() const noexcept{
         return _admin_enabled;
+    }
+    /// Access keys loaded from accessKeyFile() at the last look. 0 means only /healthz answers.
+    std::size_t accessKeyCount() const{
+        return _keys.count();
+    }
+    const std::filesystem::path& accessKeyFile() const noexcept{
+        return _keys.file();
     }
     /// What startup replay had to cut off or skip. Also written to the log.
     const std::vector<std::string>& Warnings() const;

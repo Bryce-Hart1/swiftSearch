@@ -28,6 +28,10 @@ This file covers building it, starting it, and what the startup options mean.
 - **Compaction.** Overwritten and deleted values leave dead bytes behind. After the
   store has been idle for a while, a background thread rewrites the segments that
   are mostly dead and deletes the old files.
+- **Access keys.** Every request except `GET /healthz` must carry an access key.
+  The store keeps only a salted hash of each key, never the key itself.
+- **Salted hashes.** The hash of a value that the server sends back (`ETag`,
+  `X-SwiftSearch-Hash`) is keyed with a secret salt that belongs to this store.
 
 ---
 
@@ -69,17 +73,34 @@ also produces `build/bin/swiftSearch_tests`.
 
 ## Running
 
+Make an access key first. Without one, the server answers every request except
+`/healthz` with `401`:
+
+```bash
+./build/bin/swiftSearch key add
+```
+
+The key goes to stdout (`ssk_…`, 77 characters) and is shown **only this once**.
+Save it somewhere safe. Then start the server:
+
 ```bash
 ./build/bin/swiftSearch serve
 ```
 
 That opens (or creates) a store in `./swiftsearch_data` and listens on
-`http://127.0.0.1:8080`. The banner lists the routes, the store folder and the
-limits it started with. Stop it with Ctrl-C (or `SIGTERM`): requests already in
-progress are finished before it exits.
+`http://127.0.0.1:8080`. The banner lists the routes, the store folder, how many
+access keys it loaded and the limits it started with. Stop it with Ctrl-C (or
+`SIGTERM`): requests already in progress are finished before it exits.
 
-Always give the `serve` command. Running `swiftSearch` with no command prints the
-logo and then waits forever; `--help` prints the options.
+Send the key with every request:
+
+```bash
+KEY=ssk_...   # what key add printed
+curl -H "Authorization: Bearer $KEY" http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+```
+
+Always give a command (`serve` or `key`). Running `swiftSearch` with no command
+prints the logo and then waits forever; `--help` prints the options.
 
 A typical start with a few options:
 
@@ -102,7 +123,7 @@ A typical start with a few options:
 | `--cpu-low P` | `60` | CPU busy percent below which it adds a thread back. Must be under `--cpu-high`. |
 | `--compact-idle T` | `10m` | How long the store must go without reads or writes before compaction runs. `0` turns it off. |
 | `--compact-dead-percent N` | `50` | How much of a segment must be dead before compaction rewrites it, `1`–`100`. |
-| `--admin` | off | Serve `GET`/`PUT /v1/admin/limits` to change limits while running. Loopback binds only; see [below](#changing-limits-while-it-runs) before using it behind a proxy. |
+| `--admin` | off | Serve `GET`/`PUT /v1/admin/limits` to change limits while running. Needs an `admin` key, and works on loopback binds only. See [below](#changing-limits-while-it-runs). |
 | `-h`, `--help` | | Print the options. |
 
 `SIZE` is plain bytes, or a number with a `K`, `M` or `G` suffix (powers of 1024):
@@ -137,18 +158,66 @@ during compaction.
 
 Start with `--admin` and all of the limits above except `--store`, `--bind`,
 `--port` and `--threads` can be read and changed on a running server through
-`GET`/`PUT /v1/admin/limits`, for example:
+`GET`/`PUT /v1/admin/limits`, using an `admin` key:
 
 ```bash
+./build/bin/swiftSearch key add --access admin --name ops
 ./build/bin/swiftSearch serve --admin
-curl -X PUT 'http://127.0.0.1:8080/v1/admin/limits?mem=128M&compact_idle=5m'
+curl -H "Authorization: Bearer $ADMIN_KEY" -X PUT 'http://127.0.0.1:8080/v1/admin/limits?mem=128M&compact_idle=5m'
 ```
 
 The route is **off by default**, and stays off unless the server is bound to
-loopback. **Don't use `--admin` behind a reverse proxy on the same machine** (such
-as castle+): the proxy connects from `127.0.0.1` on behalf of every outside client,
-so anyone on the internet could change the limits. See the admin section of
+loopback. `read` and `write` keys get `403` on it. Behind a reverse proxy on the
+same machine (such as castle+), the admin key is the only thing protecting it,
+because the proxy connects from `127.0.0.1` for every outside client. Leave
+`--admin` off there unless you need it. See the admin section of
 [USE.md](USE.md#admin-v1adminlimits) for every field and parameter.
+
+---
+
+## Access keys
+
+Every route except `GET /healthz` needs a key, sent as
+`Authorization: Bearer <key>`. No key, or one the store doesn't know, gets `401`.
+A key that isn't allowed to do what it asked gets `403`.
+
+| Access | Allows |
+|---|---|
+| `read` | `GET` and `HEAD` |
+| `write` (the default) | also `PUT`, `DELETE` and `POST /v1/prepare` |
+| `admin` | also `/v1/admin/limits`, when the server runs with `--admin` |
+
+```bash
+./build/bin/swiftSearch key add [--store DIR] [--access read|write|admin] [--name NAME]
+./build/bin/swiftSearch key list [--store DIR]
+./build/bin/swiftSearch key remove ID [--store DIR]
+```
+
+- **`key add`** prints the new key on stdout and nothing else, so
+  `KEY=$(swiftSearch key add)` works. The notes go to stderr. The key is never
+  written anywhere, so if you lose it, remove it and make a new one.
+- **`key list`** shows each key's id (the 8 hex digits after `ssk_`), its access
+  and its name. It cannot show the keys themselves, because the store doesn't have them.
+- **`key remove`** revokes a key.
+
+You can run all three while the server is up. They only touch
+`<store>/access.keys`, and a running server picks up the change within a second,
+with no restart. If that file is damaged, the server refuses every key (and logs
+why) rather than keep using the old list.
+
+**How keys are stored.** A key is `ssk_<id>_<secret>`, where the secret is 32
+random bytes. `access.keys` holds, for each key, a random 16-byte salt and
+`HMAC-SHA256(salt, key)`. A copy of the store folder or a backup therefore
+contains nothing that can open the store. Since keys are random rather than chosen
+by people, a slow password hash would add nothing, and the check stays fast. Every
+comparison runs in constant time.
+
+**Hashes are salted too.** The hash in `ETag`, `X-SwiftSearch-Hash` and the `hash`
+field of a `PUT` is `HMAC-SHA256(store salt, value)`, where the salt is 32 random
+bytes made on first start and kept in `<store>/store.salt`. The same file gets an
+unrelated hash in another store, and nobody can check a file they already have
+against a hash they saw. Within one store the hash is stable, across restarts too,
+so ETags work as before. It is **not** the `sha256sum` of the file.
 
 ---
 
@@ -158,25 +227,31 @@ so anyone on the internet could change the limits. See the admin section of
 |---|---|
 | `<store>/segment-NNNNNN.dat` | The data. Records are appended; compaction replaces old files with new ones. |
 | `<store>/store.meta` | When the store was created. Record timestamps count from it, so don't delete it. |
+| `<store>/access.keys` | The access keys, as salted hashes only. Mode `0600`. Edited by `swiftSearch key`; deleting a line revokes that key. |
+| `<store>/store.salt` | The store's secret salt for hashes. Mode `0600`. Made on first start; deleting it changes every hash (and ETag) the store hands out. |
 | `<store>/store.lock` | Locked while a server has the store open, so a second server on the same folder refuses to start instead of corrupting it. The kernel releases it when the process exits, even after a crash; the file staying behind is normal. |
 | `./swiftSearchLogs` | The log, in the folder you started the server from: replay warnings, limit changes, compaction runs, errors. |
 
-To back a store up, stop the server and copy the whole store folder.
+To back a store up, stop the server and copy the whole store folder. The copy
+includes `store.salt`, so keep backups as private as the data in them.
 
 ---
 
 ## Security
 
-There is **no authentication**. Anyone who can reach the port can read, overwrite
-and delete everything stored.
-
-- The default `--bind 127.0.0.1` means only programs on the same machine can
-  connect. `--bind 0.0.0.0` exposes every stored file to the whole network.
-- Behind a reverse proxy, the proxy is what keeps the store private: it must handle
-  authentication, because every request it forwards arrives from loopback.
-- The admin route is off unless you pass `--admin`, and even then only answers on a
-  loopback bind. Leave it off whenever a proxy on the same machine forwards to this
-  server.
+- **Every request needs a key**, except `GET /healthz`, which only says the server
+  is up. Without a valid key a request gets `401` and no data: not a value, not
+  whether a key exists, not even whether a route exists. An upload without a valid
+  key is refused as soon as its headers arrive, before the server reads any of the
+  body (`curl` never gets a `100 Continue`).
+- **Keys travel as plain text over plain HTTP.** swiftSearch has no TLS. On loopback
+  (the default `--bind 127.0.0.1`) that's fine. To reach it over a network, put a
+  TLS proxy in front, or anyone who can see the traffic can copy a key. Don't
+  expose `--bind 0.0.0.0` to the internet without one.
+- **Give each client its own key, with the least access it needs.** A viewer gets a
+  `read` key. Revoke one with `key remove` without touching the others.
+- **Keep the admin route off** unless you need it. It needs an `admin` key and a
+  loopback bind.
 
 ---
 
@@ -186,7 +261,7 @@ and delete everything stored.
 |---|---|
 | `0` | Stopped cleanly |
 | `1` | Bad command or option |
-| `2` | The store folder could not be opened or read, or another swiftSearch already has it open |
+| `2` | The store folder could not be opened or read, or another swiftSearch already has it open. For `key`: `access.keys` could not be read or written |
 | `3` | The server could not start, e.g. the port is already in use |
 
 ---

@@ -178,29 +178,22 @@ void Connection::parseLoop(Clock::time_point now) {
     }
 
     if (head->contentLength > _limits->head.maxBodyBytes) {
-        _closeAfter = true;
-        queue(Response::fatal(Status::ContentTooLarge,
-                              describe(ParseStatus::BodyTooLarge)), now);
-        _in.erase(_in.begin(),
-                  _in.begin() + static_cast<std::ptrdiff_t>(head->headLength));
-        if (head->expectContinue) {
-            // The clean path: withhold the 100 Continue and the body is never
-            // put on the wire. curl sends Expect automatically above 1 KB.
-            _state = ConnState::Closing;
-        } else {
-            // The client is already sending. Discard against a budget while the
-            // 413 goes out, so it can finish writing and then read the reply.
-            // Closing on it now would send an RST, and an RST makes the peer
-            // discard its receive buffer -- including the 413.
-            _state = ConnState::DrainingRequest;
-            _discardBudget = _limits->drainBudget;
-            _lingerUntil = now + _limits->lingerTimeout;
-        }
+        refuseBeforeBody(Response::fatal(Status::ContentTooLarge,
+                                         describe(ParseStatus::BodyTooLarge)),
+                         *head, now);
         return;
     }
 
+    Request req = Request::own(*head, {});
+    if (_limits->admit) {
+        if (auto refused = _limits->admit(req)) {
+            refuseBeforeBody(std::move(*refused), *head, now);
+            return;
+        }
+    }
+
     _keepAlive = head->keepAlive;
-    _req = Request::own(*head, {});
+    _req = std::move(req);
     _bodyNeeded = head->contentLength;
     _in.erase(_in.begin(), _in.begin() + static_cast<std::ptrdiff_t>(head->headLength));
 
@@ -221,6 +214,26 @@ void Connection::parseLoop(Clock::time_point now) {
     takeBodyFromInput();
     if (_req->body.size() >= _bodyNeeded) finishRequest(now);
     else setDeadline(now, _limits->bodyIdleTimeout);
+}
+
+void Connection::refuseBeforeBody(Response&& r, const RequestHead& head,
+                                  Clock::time_point now) {
+    _closeAfter = true;
+    queue(std::move(r), now);
+    _in.erase(_in.begin(), _in.begin() + static_cast<std::ptrdiff_t>(head.headLength));
+    if (head.expectContinue || head.contentLength == 0) {
+        // The clean path: withhold the 100 Continue and the body is never
+        // put on the wire. curl sends Expect automatically above 1 KB.
+        _state = ConnState::Closing;
+    } else {
+        // The client is already sending. Discard against a budget while the
+        // refusal goes out, so it can finish writing and then read the reply.
+        // Closing on it now would send an RST, and an RST makes the peer
+        // discard its receive buffer -- including the refusal.
+        _state = ConnState::DrainingRequest;
+        _discardBudget = _limits->drainBudget;
+        _lingerUntil = now + _limits->lingerTimeout;
+    }
 }
 
 void Connection::onBytes(std::span<const std::uint8_t> in, Clock::time_point now) {

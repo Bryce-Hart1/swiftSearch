@@ -69,6 +69,9 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
     _request_threads(options.server.requestThreads != 0 ? options.server.requestThreads
                                                         : bstd::syst::threadCount().value_or(4)),
     _main(std::make_unique<SwiftSearch>(options.storePath, options.segmentLimitBytes)),
+    _salt(swiftsearch::StoreSalt::openOrCreate(options.storePath)),
+    _keys(options.storePath / swiftsearch::KEYS_FILE,
+          [this](const std::string& problem){ note(problem, Logger::HIGH); }),
     _move_percent(0){
     for(const auto& warning : _main->Warnings()){
         note(warning, Logger::WARNING);
@@ -100,6 +103,21 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
         note("admin route off: bound to " + options.server.bindAddress + ", which is not loopback",
              Logger::WARNING);
     }
+    if(_keys.count() == 0){
+        note("no access keys in " + _keys.file().string() + ", so every request except /healthz is refused",
+             Logger::WARNING);
+    }
+
+    //handle() checks the key too. Asking here as well answers a request without one as soon as its
+    //head arrives, before a 100 Continue, so it cannot make the server hold up to 64 MB of its upload
+    options.server.conn.admit = [this](const http::Request& r) -> std::optional<http::Response>{
+        try{
+            return refuse(r);
+        }catch(const std::exception& e){
+            note(std::string("access check failed: ") + e.what(), Logger::HIGH);
+            return http::Response::fatal(http::Status::InternalServerError, "internal error");
+        }
+    };
     _server = std::make_unique<http::Server>(std::move(options.server),
         [this](const http::Request& r){ return handle(r); });
 }
@@ -139,8 +157,40 @@ const std::vector<std::string>& Supervise::Warnings() const{
 
 /* REQUESTS --------------------------------------------------------------------------- */
 
+std::optional<http::Response> Supervise::refuse(const http::Request& req){
+    const http::Target t = http::splitTarget(req.target);
+    if(t.path == http::HEALTH_PATH){
+        return std::nullopt; //a supervisor's probe carries no key, and the answer reveals nothing
+    }
+
+    swiftsearch::Access need = swiftsearch::Access::Write;
+    if(_admin_enabled && t.path == ADMIN_LIMITS_PATH){
+        need = swiftsearch::Access::Admin;
+    }else if(req.method == http::Method::Get || req.method == http::Method::Head){
+        need = swiftsearch::Access::Read;
+    }
+
+    const swiftsearch::Access have = _keys.check(req.header("authorization"), std::chrono::steady_clock::now());
+    if(have == swiftsearch::Access::None){
+        //one answer for a missing key and a wrong one, so a 401 never says which ids exist
+        http::Response r = http::Response::error(http::Status::Unauthorized, "missing or unknown access key");
+        r.set("WWW-Authenticate", "Bearer realm=\"swiftSearch\"");
+        return r;
+    }
+    if(have < need){
+        return http::Response::error(http::Status::Forbidden,
+            "this is a " + std::string(swiftsearch::accessName(have)) + " key; this needs " +
+            std::string(swiftsearch::accessName(need)));
+    }
+    return std::nullopt;
+}
+
+
 http::Response Supervise::handle(const http::Request& req){
     try{
+        if(auto refused = refuse(req)){
+            return std::move(*refused);
+        }
         const http::Target t = http::splitTarget(req.target);
         //when admin is off the path falls through to the dock, which answers "no such route"
         if(_admin_enabled && t.path == ADMIN_LIMITS_PATH){
@@ -183,7 +233,7 @@ http::StoreResult<http::Fetched> Supervise::GET(const std::string_view key){
             return std::unexpected(http::StoreStatus::Corrupt);
         }
         http::Fetched out;
-        out.digest = swiftsearch::sha256(value->bytes);
+        out.digest = _salt.hash(value->bytes);
         out.var_type = value->type;
         out.bytes = std::move(value->bytes);
         return out;
@@ -199,7 +249,7 @@ http::StoreResult<http::Stored> Supervise::PUT(const std::string_view key,
     try{
         const bool existed = _main->residency(key).has_value();
         http::Stored out;
-        out.digest = swiftsearch::sha256(payload);
+        out.digest = _salt.hash(payload);
         out.size = payload.size();
         out.created = !existed;
 

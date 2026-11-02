@@ -21,6 +21,8 @@ enum class Status : int {
     PartialContent              = 206,  // reserved for Range; not emitted yet
     NotModified                 = 304,  // reserved for ETag; not emitted yet
     BadRequest                  = 400,
+    Unauthorized                = 401,  // no access key, or one the store does not know
+    Forbidden                   = 403,  // a known key that may not do this
     NotFound                    = 404,
     MethodNotAllowed            = 405,
     RequestTimeout              = 408,
@@ -51,6 +53,8 @@ constexpr std::string_view reason(Status s) noexcept {
         case Status::PartialContent:              return "Partial Content";
         case Status::NotModified:                 return "Not Modified";
         case Status::BadRequest:                  return "Bad Request";
+        case Status::Unauthorized:                return "Unauthorized";
+        case Status::Forbidden:                   return "Forbidden";
         case Status::NotFound:                    return "Not Found";
         case Status::MethodNotAllowed:            return "Method Not Allowed";
         case Status::RequestTimeout:              return "Request Timeout";
@@ -73,6 +77,8 @@ constexpr std::string_view reason(Status s) noexcept {
 constexpr std::string_view errorCode(Status s) noexcept {
     switch (s) {
         case Status::BadRequest:                  return "bad_request";
+        case Status::Unauthorized:                return "unauthorized";
+        case Status::Forbidden:                   return "forbidden";
         case Status::NotFound:                    return "not_found";
         case Status::MethodNotAllowed:            return "method_not_allowed";
         case Status::RequestTimeout:              return "request_timeout";

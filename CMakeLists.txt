@@ -37,6 +37,7 @@ target_compile_options(swiftSearch_warnings INTERFACE
 add_library(swiftSearch_core OBJECT
     src/crc32c.cpp
     src/sha256.cpp
+    src/access.cpp
     src/record.cpp
     src/box_meta.cpp
     src/http/url.cpp

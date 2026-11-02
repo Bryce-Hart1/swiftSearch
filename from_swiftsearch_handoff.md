@@ -2,8 +2,9 @@
 
 **For:** the agent working on castle+.
 **Goal:** run swiftSearch as a supervised backend behind castle+, so that castle+
-provides everything swiftSearch deliberately does not: TLS, authentication, and
-the public edge.
+provides what swiftSearch deliberately does not: TLS and the public edge.
+swiftSearch now checks access keys itself, so castle+ does not have to build
+authentication for this route.
 
 swiftSearch's own docs, in its repo: `README.md` (build, flags) and `USE.md`
 (every HTTP route, header and status code). This file covers only what castle+
@@ -14,9 +15,11 @@ has to do.
 ## What swiftSearch is
 
 - A crash-safe key/value store for files, spoken to over plain HTTP/1.1.
-- **It has no authentication and no TLS, by design.** Anyone who can send it a
-  request can read, overwrite and delete everything. castle+ is the security
-  boundary.
+- **It checks access keys, but has no TLS.** Every request except `GET /healthz`
+  must carry `Authorization: Bearer ssk_…`, or it gets `401`. Keys are made with
+  `swiftSearch key add` and come in `read`, `write` and `admin` levels; a key
+  without enough access gets `403`. Keys are plain text on the wire, so TLS at
+  castle+ is what keeps them secret.
 - It binds `127.0.0.1` by default. Every request castle+ forwards arrives from
   loopback, so swiftSearch cannot tell an outside client from a local one.
 - Routes (all under the backend's root, none need rewriting):
@@ -35,16 +38,17 @@ has to do.
 
 ## Must do (security)
 
-1. **Authenticate every request on the swiftSearch route before forwarding it.**
-   castle+'s README lists no auth feature today, so this likely needs building.
-   - Reject unauthenticated requests at castle+ with `401`; never let one reach
-     the backend.
-   - A bearer token (or Basic auth) over TLS is enough to start. Compare tokens in
-     constant time.
-   - Strip the credential header (`Authorization`) before forwarding.
-     swiftSearch ignores it, and it shouldn't end up anywhere downstream.
-   - Nice to have: a read-only credential allowed only `GET`/`HEAD`, and a
-     read-write one allowed `PUT`/`DELETE`/`POST` as well.
+1. **Pass `Authorization` through untouched, over TLS only.** swiftSearch
+   authenticates every request itself, so castle+ only has to deliver the header.
+   - **Don't strip `Authorization`** on this route. Without it every request is a
+     `401`.
+   - Pass `401` and `403` responses back as they are, including `WWW-Authenticate`.
+   - Serve the route over HTTPS only (redirect or refuse plain HTTP). A key sent
+     over plain HTTP can be copied by anyone on the path.
+   - Don't log `Authorization` values.
+   - Optional: if castle+ gets its own login later, it can check its credential
+     and then replace `Authorization` with a swiftSearch key it holds. Clients then
+     never see a swiftSearch key.
 2. **Never forward `/v1/admin/`.** Answer `404` for that prefix at castle+. It is
    already off in swiftSearch unless `--admin` is passed, but this is the second lock:
    if someone adds the flag by mistake, the internet still can't reach it.
@@ -82,11 +86,11 @@ has to do.
 
    Test this one explicitly: `curl -T` with a file of a few MB.
 8. **Pass these headers through untouched,** in both directions:
-   - **Requests:** `Range`, `If-None-Match`, `If-Range`, `Content-Type`,
-     `Content-Length`, `X-SwiftSearch-Type`.
+   - **Requests:** `Authorization`, `Range`, `If-None-Match`, `If-Range`,
+     `Content-Type`, `Content-Length`, `X-SwiftSearch-Type`.
    - **Responses:** `ETag`, `Accept-Ranges`, `Content-Range`, `Cache-Control`,
      `Content-Type`, `X-SwiftSearch-Type`, `X-SwiftSearch-Hash`, `Location`,
-     `X-Content-Type-Options`.
+     `X-Content-Type-Options`, `WWW-Authenticate`.
 
    Pass `206`, `304` and `416` through as-is. A `304` has no body. Video seeking
    depends on all of this.
@@ -107,6 +111,13 @@ autorestart = true
 health_tcp  = 127.0.0.1:9101
 ```
 
+- **Make a key before the first start**, as the user swiftSearch runs as, so the
+  key file belongs to it:
+  ```sh
+  swiftSearch key add --store /var/lib/swiftsearch --name client
+  ```
+  The key is printed once; hand it to the client. `key add` and `key remove` work
+  while the server runs and take effect within a second, so no restart is needed.
 - **Absolute `--store`.** Set a working dir too, because swiftSearch writes its
   log file `swiftSearchLogs` into whatever directory it starts in. Use whatever
   castle+ calls its working-directory option.
@@ -129,7 +140,7 @@ health_tcp  = 127.0.0.1:9101
 
   Quarantining on repeated `1` or `2` is the right behavior.
 - **Health:** `health_tcp` works. `GET /healthz` is a stronger check if castle+ can
-  do HTTP probes. `/healthz` is fine to leave public; it reveals nothing.
+  do HTTP probes. It needs no key, and is fine to leave public; it reveals nothing.
 
 ---
 
@@ -156,8 +167,10 @@ health_tcp  = 127.0.0.1:9101
 ## Acceptance checks, run through castle+ over HTTPS
 
 ```sh
-H=https://vault.example.com; A='Authorization: Bearer <token>'
-curl -s -o /dev/null -w '%{http_code}\n' $H/v1/blobs/x                        # 401: no credential
+H=https://vault.example.com; A='Authorization: Bearer <a write key from swiftSearch key add>'
+curl -s -o /dev/null -w '%{http_code}\n' $H/v1/blobs/x                        # 401: no key, from swiftSearch
+curl -s -H 'Authorization: Bearer ssk_00000000_0000000000000000000000000000000000000000000000000000000000000000' \
+     -o /dev/null -w '%{http_code}\n' $H/v1/blobs/x                           # 401: unknown key
 curl -s -H "$A" -T photo.jpg $H/v1/blobs/photos/photo.jpg                     # 201 + JSON (exercises Expect)
 curl -s -H "$A" -o out.jpg $H/v1/blobs/photos/photo.jpg && cmp photo.jpg out.jpg
 curl -s -H "$A" -H 'Range: bytes=0-99' -D - -o /dev/null $H/v1/blobs/photos/photo.jpg   # 206, Content-Range

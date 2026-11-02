@@ -54,4 +54,12 @@ private:
 /// One-shot convenience.
 Digest sha256(std::span<const std::uint8_t> data) noexcept;
 
+/// HMAC-SHA256 (RFC 2104): a hash only someone holding `key` can compute.
+/// This, not sha256(key ++ data), is how a salt is mixed in, because a bare
+/// SHA-256 over a secret prefix can be extended by anyone who has seen one
+/// digest. Used for the hashes the server hands out (keyed by the store's
+/// salt) and for access keys (keyed by each key's own salt); see access.hpp.
+Digest hmacSha256(std::span<const std::uint8_t> key,
+                  std::span<const std::uint8_t> data) noexcept;
+
 }  // namespace swiftsearch

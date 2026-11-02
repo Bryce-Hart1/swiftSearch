@@ -92,7 +92,8 @@ private:
 using Handler = std::function<Response(const Request&)>;
 
 struct ServerOptions {
-    /// Loopback by default. There is no authentication, and a hand-rolled
+    /// Loopback by default. Requests need an access key (see access.hpp), but
+    /// with no TLS here a key crosses the wire in the clear, and a hand-rolled
     /// server holding every photo you own should not be reachable from the LAN
     /// because someone forgot a flag.
     std::string bindAddress = "127.0.0.1";

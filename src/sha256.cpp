@@ -1,5 +1,6 @@
 #include "sha256.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 namespace swiftsearch {
@@ -141,6 +142,33 @@ Digest sha256(std::span<const std::uint8_t> data) noexcept {
     Sha256 h;
     h.update(data);
     return h.finish();
+}
+
+Digest hmacSha256(std::span<const std::uint8_t> key,
+                  std::span<const std::uint8_t> data) noexcept {
+    // RFC 2104. A key longer than the block is hashed down first; a shorter
+    // one is zero-padded to the block, which is what the pad loop does.
+    constexpr std::size_t BLOCK = 64;
+    std::array<std::uint8_t, BLOCK> k{};
+    if (key.size() > BLOCK) {
+        const Digest d = sha256(key);
+        std::copy(d.begin(), d.end(), k.begin());
+    } else {
+        std::copy(key.begin(), key.end(), k.begin());
+    }
+
+    std::array<std::uint8_t, BLOCK> pad{};
+    for (std::size_t i = 0; i < BLOCK; ++i) pad[i] = k[i] ^ 0x36;
+    Sha256 inner;
+    inner.update(pad);
+    inner.update(data);
+    const Digest innerDigest = inner.finish();
+
+    for (std::size_t i = 0; i < BLOCK; ++i) pad[i] = k[i] ^ 0x5c;
+    Sha256 outer;
+    outer.update(pad);
+    outer.update(innerDigest);
+    return outer.finish();
 }
 
 std::string to_hex(const Digest& d) {

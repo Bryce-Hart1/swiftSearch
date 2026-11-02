@@ -7,9 +7,12 @@ to do. For building it, starting it, and what the startup flags mean, see
 Everything here assumes the default address, `http://127.0.0.1:8080`. Change the
 host and port to match the `--bind` and `--port` you started with.
 
-> **There is no authentication.** Anyone who can reach the port can read, write
-> and delete everything. The server listens on loopback (`127.0.0.1`) unless you
-> tell it otherwise.
+> **Every request needs an access key** except `GET /healthz`. See
+> [Access keys](#access-keys). The examples put the header in a shell variable:
+>
+> ```bash
+> K="Authorization: Bearer ssk_..."   # a key from `swiftSearch key add`
+> ```
 
 ---
 
@@ -17,19 +20,19 @@ host and port to match the `--bind` and `--port` you started with.
 
 ```bash
 # store a file under the key notes/hello.txt
-curl -X PUT --data-binary @hello.txt http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -X PUT --data-binary @hello.txt http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 
 # read it back
-curl http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 
 # headers only
-curl -I http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -I http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 
 # pull it into memory so the next read skips the disk
-curl -X POST http://127.0.0.1:8080/v1/prepare/notes/hello.txt
+curl -H "$K" -X POST http://127.0.0.1:8080/v1/prepare/notes/hello.txt
 
 # delete it
-curl -X DELETE http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -X DELETE http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 ```
 
 Use `--data-binary`, not `-d`. `-d` strips newlines from the file, so you would
@@ -37,21 +40,57 @@ store something other than what is on your disk.
 
 ---
 
+## Access keys
+
+Send a key on every request except `GET /healthz`:
+
+```
+Authorization: Bearer ssk_3f867379_…
+```
+
+Make keys with `swiftSearch key add`, list them with `key list` and revoke one with
+`key remove <id>` (see README). Each key has one level of access:
+
+| Access | May use |
+|---|---|
+| `read` | `GET` and `HEAD` on every route |
+| `write` | also `PUT`, `DELETE` and `POST` |
+| `admin` | also `/v1/admin/limits` |
+
+| You send | You get |
+|---|---|
+| No `Authorization` header, a scheme other than `Bearer`, or a key the store doesn't have (including a revoked one) | `401` with `WWW-Authenticate: Bearer realm="swiftSearch"` |
+| A valid key without enough access, e.g. a `read` key on `PUT` | `403` |
+
+A `401` comes before anything else. Without a valid key, a missing value, a bad key
+path and an unknown route all look the same, so a stranger learns nothing about
+what's stored. An upload without a valid key is refused as soon as its headers
+arrive: with `Expect: 100-continue` (curl's default over 1 KB) the body is never
+sent. The connection closes after a `401` or `403` that arrives that early.
+
+`Bearer` is case-insensitive; the key is not. A key that was just revoked stops
+working within a second.
+
+The key is in plain text on the wire. Over anything but loopback, put TLS in front.
+
+---
+
 ## Routes at a glance
 
-| Method | Path | What it does | Success |
-|---|---|---|---|
-| `PUT` | `/v1/blobs/<key>` | Store a value; the request body is the value | `201` new, `200` replaced |
-| `GET` | `/v1/blobs/<key>` | Read a value; the response body is the value | `200`, `206`, `304` |
-| `HEAD` | `/v1/blobs/<key>` | The same headers as `GET`, no body | `200` |
-| `DELETE` | `/v1/blobs/<key>` | Remove a value | `204` |
-| `POST` | `/v1/prepare/<key>` | Load a value from disk into memory | `204` |
-| `GET` `HEAD` | `/healthz` | Is the server up? | `200` |
-| `GET` `PUT` | `/v1/admin/limits` | Read or change the server's limits (`--admin`, loopback only) | `200` |
-| `GET` `PUT` | `/v1/boxes/<key>` | Folders of keys. **Not built yet**, always `501` | — |
+| Method | Path | What it does | Access key | Success |
+|---|---|---|---|---|
+| `PUT` | `/v1/blobs/<key>` | Store a value; the request body is the value | `write` | `201` new, `200` replaced |
+| `GET` | `/v1/blobs/<key>` | Read a value; the response body is the value | `read` | `200`, `206`, `304` |
+| `HEAD` | `/v1/blobs/<key>` | The same headers as `GET`, no body | `read` | `200` |
+| `DELETE` | `/v1/blobs/<key>` | Remove a value | `write` | `204` |
+| `POST` | `/v1/prepare/<key>` | Load a value from disk into memory | `write` | `204` |
+| `GET` `HEAD` | `/healthz` | Is the server up? | none | `200` |
+| `GET` `PUT` | `/v1/admin/limits` | Read or change the server's limits (`--admin`, loopback only) | `admin` | `200` |
+| `GET` `PUT` | `/v1/boxes/<key>` | Folders of keys. **Not built yet**, always `501` | `read` / `write` | — |
 
 Any other method on a known path gets `405` with an `Allow` header listing what
-that path accepts. A path that matches nothing gets `404 no such route`.
+that path accepts. A path that matches nothing gets `404 no such route`. Both of
+those need a valid key first; without one, every path except `/healthz` is a `401`.
 
 ---
 
@@ -91,7 +130,7 @@ The request body is the value, byte for byte. A `PUT` to a key that already
 exists replaces the whole value.
 
 ```bash
-curl -X PUT --data-binary @beach.jpg http://127.0.0.1:8080/v1/blobs/photos/beach.jpg
+curl -H "$K" -X PUT --data-binary @beach.jpg http://127.0.0.1:8080/v1/blobs/photos/beach.jpg
 ```
 
 **Request**
@@ -127,7 +166,7 @@ when an existing value was replaced. Both carry `X-SwiftSearch-Hash` and a JSON 
 | Field | |
 |---|---|
 | `key` | The key as stored, percent-decoded |
-| `hash` | SHA-256 of the value, in hex |
+| `hash` | The value's [salted hash](#hashes), in hex |
 | `size` | Bytes stored |
 | `type` | The type it was stored as |
 | `created` | `true` for a new key, `false` for a replacement |
@@ -143,7 +182,7 @@ space until compaction reclaims it.
 ### `GET /v1/blobs/<key>`: read a value
 
 ```bash
-curl http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 ```
 
 The body is the value exactly as stored. The headers:
@@ -152,7 +191,7 @@ The body is the value exactly as stored. The headers:
 |---|---|
 | `Content-Type` | From the stored type and the key's extension. See [Value types](#value-types). |
 | `X-SwiftSearch-Type` | The stored type name, e.g. `str`, `img` |
-| `X-SwiftSearch-Hash` | SHA-256 of the whole value, in hex |
+| `X-SwiftSearch-Hash` | The whole value's [salted hash](#hashes), in hex |
 | `ETag` | The same hash in quotes. Use it for conditional requests. |
 | `Accept-Ranges` | `bytes`: ranges are supported |
 | `Cache-Control` | `no-cache`: a cache may keep it but must check back, because a `PUT` can change what a key holds |
@@ -169,7 +208,7 @@ Send back the `ETag` you got earlier. If the value has not changed you get
 `304 Not Modified` with no body:
 
 ```bash
-curl -H 'If-None-Match: "c0757014a9…7a56e49"' http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -H 'If-None-Match: "c0757014a9…7a56e49"' http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 ```
 
 `*` matches any existing value. A list of tags and weak tags (`W/"…"`) are accepted.
@@ -179,7 +218,7 @@ curl -H 'If-None-Match: "c0757014a9…7a56e49"' http://127.0.0.1:8080/v1/blobs/n
 One byte range per request, which is what video players send:
 
 ```bash
-curl -H "Range: bytes=0-4" http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -H "Range: bytes=0-4" http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 # 206 Partial Content, Content-Range: bytes 0-4/19, body "hello"
 ```
 
@@ -206,18 +245,37 @@ and conditionals work the same way. Use it to check whether a key exists, or to 
 size, type or hash:
 
 ```bash
-curl -I http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -I http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 ```
 
 ### `DELETE /v1/blobs/<key>`: remove a value
 
 ```bash
-curl -X DELETE http://127.0.0.1:8080/v1/blobs/notes/hello.txt
+curl -H "$K" -X DELETE http://127.0.0.1:8080/v1/blobs/notes/hello.txt
 ```
 
 `204 No Content` when it was deleted, `404` when there was no such key. Like a `PUT`,
 a `204` means the delete is on disk and survives a crash. The space the value used
 is reclaimed later by compaction (see README).
+
+---
+
+## Hashes
+
+`X-SwiftSearch-Hash`, the `ETag` and the `hash` field of a `PUT` all hold the same
+64 hex digits: `HMAC-SHA256(salt, value)`. The salt is 32 random bytes that belong
+to this store, kept in `<store>/store.salt`.
+
+- **Stable within a store.** The same bytes always get the same hash, across
+  restarts too, so ETags and `If-None-Match` work as usual.
+- **Not the `sha256sum` of the file.** You can't check a download against
+  `sha256sum`, and nobody can hash a file they already have to find out whether
+  this store holds it.
+- **Different in every store.** The same file stored in two stores gets two
+  unrelated hashes.
+
+To check that a download arrived intact, compare it with the `X-SwiftSearch-Hash`
+from your own `PUT`, or with a hash you computed before uploading.
 
 ---
 
@@ -248,7 +306,7 @@ Reads the value from disk into the server's in-memory cache, so the next `GET` i
 served from RAM. No request body is needed.
 
 ```bash
-curl -X POST http://127.0.0.1:8080/v1/prepare/videos/intro.mp4
+curl -H "$K" -X POST http://127.0.0.1:8080/v1/prepare/videos/intro.mp4
 ```
 
 | Status | When |
@@ -282,14 +340,18 @@ server was started with `--admin` and is bound to a loopback address** (`127.x.x
 `::1` or `localhost`). Otherwise it answers `404 no such route`, and the limits can
 only be set by the startup flags. Other methods get `405` with `Allow: GET, PUT`.
 
+It takes an **`admin` key**. A `read` or `write` key gets `403`. The examples below
+assume `$K` holds an admin key.
+
 It is off by default because loopback is not proof that a request is local: a
-reverse proxy on the same machine forwards every outside client from `127.0.0.1`.
-Don't turn it on behind one.
+reverse proxy on the same machine forwards every outside client from `127.0.0.1`,
+which leaves the admin key as the only lock. Leave it off behind one unless you
+need it.
 
 ### `GET /v1/admin/limits`
 
 ```bash
-curl http://127.0.0.1:8080/v1/admin/limits
+curl -H "$K" http://127.0.0.1:8080/v1/admin/limits
 ```
 
 ```json
@@ -320,7 +382,7 @@ The changes go in the query string. Give only what you want to change; the rest
 keeps its current value. The answer is the same JSON as `GET`, showing the new values.
 
 ```bash
-curl -X PUT 'http://127.0.0.1:8080/v1/admin/limits?mem=128M&compact_idle=5m'
+curl -H "$K" -X PUT 'http://127.0.0.1:8080/v1/admin/limits?mem=128M&compact_idle=5m'
 ```
 
 | Parameter | Accepts |
@@ -360,6 +422,8 @@ Every error has a JSON body of the same shape:
 | Status | `code` | Common causes |
 |---|---|---|
 | `400` | `bad_request` | A key that breaks a [key rule](#keys), an unknown `X-SwiftSearch-Type`, a bad admin parameter, a malformed request |
+| `401` | `unauthorized` | No access key, a key the store doesn't have, or a revoked one. See [Access keys](#access-keys). |
+| `403` | `forbidden` | A valid key without enough access, e.g. a `read` key on `PUT` |
 | `404` | `not_found` | No such key; no such route; the admin route without `--admin` or on a non-loopback bind |
 | `405` | `method_not_allowed` | A method that path does not take. The `Allow` header lists the ones it does. |
 | `408` | `request_timeout` | The request arrived too slowly (see [Limits](#limits-and-timeouts)) |
@@ -374,8 +438,8 @@ Every error has a JSON body of the same shape:
 | `505` | `bad_version` | Anything other than HTTP/1.0 or HTTP/1.1 |
 
 Errors that leave the connection in an unknown state also close it
-(`Connection: close`): a malformed request, an unknown method, `408`, `411`, `413`
-and `503`. Open a new connection and try again.
+(`Connection: close`): a malformed request, an unknown method, `408`, `411`, `413`,
+`503`, and a `401` or `403` sent before the body was read. Open a new connection and try again.
 
 ---
 

@@ -26,6 +26,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -100,6 +101,14 @@ struct ConnLimits {
 
     /// Pipelined bytes buffered while dispatched, before Read is withdrawn.
     std::size_t pipelineCap = 64u * 1024u;
+
+    /// Asked once a head has parsed, before any of its body is read and before
+    /// a 100 Continue goes out. A response refuses the request: it is sent and
+    /// the connection closes, with the body withheld or drained exactly as for
+    /// a 413. This is how a request with no valid access key is turned away
+    /// without the server ever holding up to 64 MB of its upload. Empty admits
+    /// everything. Runs on the reactor thread, so it must be quick.
+    std::function<std::optional<Response>(const Request&)> admit;
 };
 
 class Connection {
@@ -149,6 +158,8 @@ private:
     bool outDrained() const noexcept { return _outCursor >= _outTotal; }
     void startHead(Clock::time_point now);
     void parseLoop(Clock::time_point now);
+    /// Answers `r` before the body of the request in `head` is read, then closes.
+    void refuseBeforeBody(Response&& r, const RequestHead& head, Clock::time_point now);
     void takeBodyFromInput();
     void finishRequest(Clock::time_point now);
     void setDeadline(Clock::time_point now, std::chrono::milliseconds d) noexcept;
