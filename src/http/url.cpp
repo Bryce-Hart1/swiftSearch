@@ -119,7 +119,10 @@ std::expected<std::string, UrlStatus> keyFromPath(std::string_view path,
     if (path.size() < prefix.size() || path.substr(0, prefix.size()) != prefix) {
         return std::unexpected(UrlStatus::NoPrefixMatch);
     }
-    const std::string_view raw = path.substr(prefix.size());
+    return keyFromEncoded(path.substr(prefix.size()));
+}
+
+std::expected<std::string, UrlStatus> keyFromEncoded(std::string_view raw) {
     if (raw.empty()) return std::unexpected(UrlStatus::Empty);
 
     // Refused on the RAW bytes, before decoding. Doing it after would mean

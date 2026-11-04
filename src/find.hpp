@@ -59,6 +59,7 @@
 
 #include "bstd/data_structure/threadsafe/tsTrie.hpp"
 #include "bytes.hpp"
+#include "record.hpp"
 #include "var_type.hpp"
 
 #include <cstdint>
@@ -181,6 +182,20 @@ public:
     /// Snapshot of every key. Order is the trie's depth-first order.
     std::vector<std::string> keys() const {
         return _keys.getWords();
+    }
+
+    /// Every key that is `root` itself or inside it (`root/...`), in no particular order.
+    /// Scans the map, not the trie: the trie walks a key one recursive call per character,
+    /// so a long key could run a request thread out of stack.
+    std::vector<std::string> keysAtOrUnder(std::string_view root) const {
+        std::vector<std::string> found;
+        std::shared_lock lock(_map_mtx);
+        for(const auto& [key, entry] : _map){
+            if(key == root || keys::is_within(key, root)){
+                found.push_back(key);
+            }
+        }
+        return found;
     }
 
     /** @attention writes ----------------------------------------------------- */

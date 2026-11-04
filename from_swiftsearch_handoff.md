@@ -30,6 +30,8 @@ has to do.
 | `GET` `HEAD` | `/v1/blobs/<key>` | read a value; supports `Range`, `If-None-Match`, `If-Range` |
 | `DELETE` | `/v1/blobs/<key>` | delete a value |
 | `POST` | `/v1/prepare/<key>` | load a value into memory |
+| `POST` | `/v1/box/<name>?first=<key>&second=<key>` | combine two things under a new name (a `write` key is enough; not admin). Can take long on a big box, and writers wait meanwhile |
+| `POST` | `/v1/unbox/<name>` | take one layer off a box |
 | `GET` `HEAD` | `/healthz` | liveness, `{"status":"ok"}` |
 | `GET` `PUT` | `/v1/boxes/<key>` | reserved, always `501` today |
 | `GET` `PUT` | `/v1/admin/limits` | admin. **Off unless started with `--admin`. Never enable it behind castle+.** |

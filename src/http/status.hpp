@@ -26,6 +26,7 @@ enum class Status : int {
     NotFound                    = 404,
     MethodNotAllowed            = 405,
     RequestTimeout              = 408,
+    Conflict                    = 409,
     LengthRequired              = 411,
     PreconditionFailed          = 412,
     ContentTooLarge             = 413,
@@ -58,6 +59,7 @@ constexpr std::string_view reason(Status s) noexcept {
         case Status::NotFound:                    return "Not Found";
         case Status::MethodNotAllowed:            return "Method Not Allowed";
         case Status::RequestTimeout:              return "Request Timeout";
+        case Status::Conflict:                    return "Conflict";
         case Status::LengthRequired:              return "Length Required";
         case Status::PreconditionFailed:          return "Precondition Failed";
         case Status::ContentTooLarge:             return "Content Too Large";
@@ -82,6 +84,7 @@ constexpr std::string_view errorCode(Status s) noexcept {
         case Status::NotFound:                    return "not_found";
         case Status::MethodNotAllowed:            return "method_not_allowed";
         case Status::RequestTimeout:              return "request_timeout";
+        case Status::Conflict:                    return "conflict";
         case Status::LengthRequired:              return "length_required";
         case Status::PreconditionFailed:          return "precondition_failed";
         case Status::ContentTooLarge:             return "content_too_large";

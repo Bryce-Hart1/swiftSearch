@@ -81,6 +81,10 @@ std::expected<std::string, UrlStatus> percentDecode(std::string_view in);
 std::expected<std::string, UrlStatus> keyFromPath(std::string_view path,
                                                   std::string_view prefix);
 
+/// The same validation keyFromPath applies, for a key that did not come from a
+/// path: `raw` is the still-encoded text, for example a query parameter's value.
+std::expected<std::string, UrlStatus> keyFromEncoded(std::string_view raw);
+
 /// The raw, still-encoded value of `name` in a query string, or nullopt.
 /// Raw because a value may need decoding (a cursor is a key) and a view cannot
 /// own the decoded bytes; the caller runs percentDecode when it matters.

@@ -52,6 +52,12 @@ enum class StoreStatus : std::uint8_t {
     /// The value exists but is bigger than this operation is allowed to take
     /// on -- a prepare that would push too much of the cache out.
     TooLarge,
+    /// The operation would clobber something that is already stored: a box into
+    /// a name that is taken, an unbox onto a key that exists.
+    Conflict,
+    /// The arguments are well-formed keys but ask for something that makes no
+    /// sense, such as boxing a thing with itself.
+    Invalid,
 };
 
 std::string_view describe(StoreStatus s) noexcept;
@@ -111,6 +117,24 @@ struct Listing {
     std::string next_cursor;
 };
 
+/// Why a box or unbox did nothing. Unlike the other calls it carries a sentence,
+/// because "which of my three keys was the problem" is the whole answer a client
+/// needs. The store writes it for a client, never for a log.
+struct BoxError {
+    StoreStatus status = StoreStatus::Internal;
+    std::string message;
+};
+
+/// What a box or unbox reports back.
+struct Boxed {
+    std::uint64_t moved = 0;
+    /// Box: true for a new layer (201), false when the other thing was added to
+    /// an existing box (200). Unbox: false.
+    bool created = false;
+};
+
+using BoxResult = std::expected<Boxed, BoxError>;
+
 struct StoreBinding {
     std::function<StoreResult<Fetched>(std::string_view key)> get;
 
@@ -130,6 +154,15 @@ struct StoreBinding {
     /// Load a key's value into memory so the next GET is served from RAM. The
     /// value stays on disk; this only warms the cache.
     std::function<StoreResult<void>(std::string_view key)> prepare;
+
+    /// Re-key two things (an item, or a box and everything in it) under a new
+    /// name, so `first` and `second` become the contents of the box `name`.
+    std::function<BoxResult(std::string_view first, std::string_view second,
+                            std::string_view name)> box;
+
+    /// Dissolve the box `name`, one layer deep: what was in it is stored under
+    /// its own name again.
+    std::function<BoxResult(std::string_view name)> unbox;
 };
 
 }  // namespace swiftsearch::http

@@ -98,6 +98,10 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
     };
     _binding.remove = [this](std::string_view key){ return DELETE(key); };
     _binding.prepare = [this](std::string_view key){ return MOVE(key); };
+    _binding.box = [this](std::string_view first, std::string_view second, std::string_view name){
+        return BOX(first, second, name);
+    };
+    _binding.unbox = [this](std::string_view name){ return UNBOX(name); };
 
     if(options.admin && !_admin_enabled){
         note("admin route off: bound to " + options.server.bindAddress + ", which is not loopback",
@@ -309,6 +313,57 @@ http::StoreResult<void> Supervise::MOVE(const std::string_view key){
     }catch(const std::exception& e){
         note("MOVE " + std::string(key) + ": " + e.what(), Logger::HIGH);
         return std::unexpected(http::StoreStatus::Internal);
+    }
+}
+
+
+//the store's reason, as the dock's. An Internal one is logged in full and answered vaguely, like every other
+//internal error; the rest are sentences written for the client
+http::BoxError Supervise::boxFailure(const swiftsearch::BoxError& e, const std::string_view what){
+    switch(e.kind){
+        case swiftsearch::BoxFailure::Invalid:
+            return http::BoxError{http::StoreStatus::Invalid, e.message};
+        case swiftsearch::BoxFailure::NotFound:
+            return http::BoxError{http::StoreStatus::NotFound, e.message};
+        case swiftsearch::BoxFailure::Conflict:
+            return http::BoxError{http::StoreStatus::Conflict, e.message};
+        case swiftsearch::BoxFailure::Internal:
+            break;
+    }
+    note(std::string(what) + ": " + e.message, Logger::HIGH);
+    return http::BoxError{http::StoreStatus::Internal, "internal store error"};
+}
+
+
+http::BoxResult Supervise::BOX(const std::string_view first, const std::string_view second,
+    const std::string_view name){
+    const std::string what = "BOX " + std::string(first) + " + " + std::string(second) + " -> " + std::string(name);
+    try{
+        const auto done = _main->Box(first, second, name);
+        if(!done.has_value()){
+            return std::unexpected(boxFailure(done.error(), what));
+        }
+        note(what + ": " + std::to_string(done->moved) + " keys moved", Logger::MED);
+        return http::Boxed{u64(done->moved), done->created};
+    }catch(const std::exception& e){
+        note(what + ": " + e.what(), Logger::HIGH);
+        return std::unexpected(http::BoxError{http::StoreStatus::Internal, "internal store error"});
+    }
+}
+
+
+http::BoxResult Supervise::UNBOX(const std::string_view name){
+    const std::string what = "UNBOX " + std::string(name);
+    try{
+        const auto done = _main->Unbox(name);
+        if(!done.has_value()){
+            return std::unexpected(boxFailure(done.error(), what));
+        }
+        note(what + ": " + std::to_string(done->moved) + " keys moved", Logger::MED);
+        return http::Boxed{u64(done->moved), false};
+    }catch(const std::exception& e){
+        note(what + ": " + e.what(), Logger::HIGH);
+        return std::unexpected(http::BoxError{http::StoreStatus::Internal, "internal store error"});
     }
 }
 

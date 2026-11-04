@@ -84,9 +84,11 @@ The key is in plain text on the wire. Over anything but loopback, put TLS in fro
 | `HEAD` | `/v1/blobs/<key>` | The same headers as `GET`, no body | `read` | `200` |
 | `DELETE` | `/v1/blobs/<key>` | Remove a value | `write` | `204` |
 | `POST` | `/v1/prepare/<key>` | Load a value from disk into memory | `write` | `204` |
+| `POST` | `/v1/box/<name>?first=<key>&second=<key>` | Combine two things under a new name | `write` | `201` new box, `200` added to a box |
+| `POST` | `/v1/unbox/<name>` | Take one layer off a box | `write` | `200` |
 | `GET` `HEAD` | `/healthz` | Is the server up? | none | `200` |
 | `GET` `PUT` | `/v1/admin/limits` | Read or change the server's limits (`--admin`, loopback only) | `admin` | `200` |
-| `GET` `PUT` | `/v1/boxes/<key>` | Folders of keys. **Not built yet**, always `501` | `read` / `write` | — |
+| `GET` `PUT` | `/v1/boxes/<key>` | Listing a box and its metadata. **Not built yet**, always `501` | `read` / `write` | — |
 
 Any other method on a known path gets `405` with an `Allow` header listing what
 that path accepts. A path that matches nothing gets `404 no such route`. Both of
@@ -401,7 +403,111 @@ silently does nothing. A `PUT` with no parameters at all is a `400` too.
 
 ---
 
-## Boxes: not built yet
+## Box and unbox
+
+A **box** is a folder of keys: the box `beach` is every key under `beach/`. Boxing
+combines two things under a new name, and unboxing takes one layer apart again.
+Both are plain `POST`s, so a **`write` key** is enough. Neither needs `--admin` or
+an `admin` key.
+
+A **thing** is one key plus everything under it: `beach_photo_231` is one value,
+`beach_videos` is every `beach_videos/...` key. Either can be boxed, and boxes can
+be boxed again as deep as you like.
+
+### `POST /v1/box/<name>?first=<key>&second=<key>`
+
+```bash
+curl -H "$K" -X POST 'http://127.0.0.1:8080/v1/box/beach?first=beach_videos&second=beach_photo_231'
+```
+
+Every key in `first` and in `second` moves under `<name>/`. The rest of the key, the
+value, its type and its timestamp stay as they were:
+
+| Before | After |
+|---|---|
+| `beach_videos/a.mp4` | `beach/beach_videos/a.mp4` |
+| `beach_videos/b.mp4` | `beach/beach_videos/b.mp4` |
+| `beach_photo_231` | `beach/beach_photo_231` |
+
+From then on `GET /v1/blobs/beach_photo_231` is a `404`, and
+`GET /v1/blobs/beach/beach_photo_231` returns the photo. The three keys are keys
+like any other, so `PUT`, `DELETE` and `prepare` work on them under their new names.
+
+`first`, `second` and `<name>` are keys, written like the key in a blob URL. In the
+query string they are percent-encoded the same way, a slash is a plain `/`, and `%2F`
+is refused.
+
+**Response:** `201 Created` with how many keys moved:
+
+```json
+{"name":"beach","moved":3,"created":true}
+```
+
+**The name must be new.** There is one exception, which is how you add to a box that
+exists: `<name>` may be the same as `first` or `second` when that one is already a
+box. The other thing is then moved into it, and nothing already in the box moves.
+The answer is `200 OK` with `"created":false`.
+
+```bash
+# beach is a box; add another photo to it
+curl -H "$K" -X POST 'http://127.0.0.1:8080/v1/box/beach?first=beach&second=beach_photo_232'
+```
+
+**Refused, with nothing changed:**
+
+| Status | When |
+|---|---|
+| `400` | A key that breaks the [key rules](#keys) (the error names the parameter). `first` and `second` are the same thing, or one is inside the other. `<name>` is inside `first` or `second`. `<name>` is the name of a single item rather than a box. A moved key would pass the 64 KiB key limit. |
+| `404` | There is no key at or under `first` or `second`. |
+| `409` | `<name>` already exists, or a key the move would create does. |
+
+### `POST /v1/unbox/<name>`
+
+```bash
+curl -H "$K" -X POST http://127.0.0.1:8080/v1/unbox/beach
+```
+
+Dissolves the box one layer deep: every key under `<name>/` loses that prefix.
+
+| Before | After |
+|---|---|
+| `beach/beach_videos/a.mp4` | `beach_videos/a.mp4` |
+| `beach/beach_videos/b.mp4` | `beach_videos/b.mp4` |
+| `beach/beach_photo_231` | `beach_photo_231` |
+
+Afterwards `GET /v1/blobs/beach/...` finds nothing, and what was inside answers
+under its own name. It does not go deeper: `beach_videos` is still a box. Any prefix
+with keys under it can be unboxed, not only one that `box` made. A value stored at
+the exact key `beach` is not part of the box and stays where it is.
+
+**Response:** `200 OK`, `{"name":"beach","moved":3}`.
+
+**Refused, with nothing changed:** `400` for a bad key, or a `<name>` that is a single
+item with nothing under it; `404` when nothing is stored under `<name>/`; `409` when a
+key it would put back already exists. That includes a box that holds a layer with the
+same name as itself (`a/a/x` in the box `a`).
+
+### What it costs
+
+- **Every moved byte is rewritten.** A value is copied to its new key and the old
+  key is deleted, so boxing 10 GB writes 10 GB. The old copies are dead space until
+  compaction reclaims them. Boxing a box that sits inside a larger box moves
+  everything in it again.
+- **Writers wait while it runs.** `PUT`, `DELETE` and other boxing wait for the move
+  to finish. Reads are not held up.
+- **It scans every key** to find what is under a name, so it is meant for the
+  occasional reorganising, not for every request.
+- **A key is never under neither name.** Copies are written and flushed before any
+  old key is deleted, so a reader finds each key under one name or the other. The
+  answer arrives once everything is on disk. If a copy fails part way (a full disk, a
+  damaged value), the copies already made are deleted again and the answer is `500`.
+- **A crash part way** can leave some keys under both names, and none lost. `box` then
+  refuses to run again, because its name exists. Delete one set of the duplicates (the
+  old names or the new ones) and carry on.
+
+---
+
+## Listing boxes: not built yet
 
 `GET /v1/boxes/<key>` (list the keys under a prefix) and `PUT /v1/boxes/<key>`
 (folder metadata) are reserved. Both answer `501 Not Implemented` until the store
@@ -421,19 +527,20 @@ Every error has a JSON body of the same shape:
 
 | Status | `code` | Common causes |
 |---|---|---|
-| `400` | `bad_request` | A key that breaks a [key rule](#keys), an unknown `X-SwiftSearch-Type`, a bad admin parameter, a malformed request |
+| `400` | `bad_request` | A key that breaks a [key rule](#keys), an unknown `X-SwiftSearch-Type`, a bad admin parameter, a `box` or `unbox` that makes no sense, a malformed request |
 | `401` | `unauthorized` | No access key, a key the store doesn't have, or a revoked one. See [Access keys](#access-keys). |
 | `403` | `forbidden` | A valid key without enough access, e.g. a `read` key on `PUT` |
-| `404` | `not_found` | No such key; no such route; the admin route without `--admin` or on a non-loopback bind |
+| `404` | `not_found` | No such key; no such route; a `box` or `unbox` of something that is not there; the admin route without `--admin` or on a non-loopback bind |
 | `405` | `method_not_allowed` | A method that path does not take. The `Allow` header lists the ones it does. |
 | `408` | `request_timeout` | The request arrived too slowly (see [Limits](#limits-and-timeouts)) |
+| `409` | `conflict` | A `box` or `unbox` that would write onto a key that already exists |
 | `411` | `length_required` | `PUT` without `Content-Length` |
 | `413` | `content_too_large` | A body over 64 MiB; a prepare over `move_max` |
 | `414` | `uri_too_long` | A key over 64 KiB |
 | `416` | `range_not_satisfiable` | A `Range` that starts past the end of the value |
 | `431` | `headers_too_large` | Request head over 8 KiB or more than 64 headers |
 | `500` | `internal_error` | A stored record failed its checksum, or the disk failed |
-| `501` | `unsupported` | Box routes; `Transfer-Encoding` uploads |
+| `501` | `unsupported` | `/v1/boxes` listing; `Transfer-Encoding` uploads |
 | `503` | `unavailable` | Too many requests queued, or the server is shutting down. Retry. |
 | `505` | `bad_version` | Anything other than HTTP/1.0 or HTTP/1.1 |
 

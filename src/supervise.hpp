@@ -18,6 +18,9 @@
  *                 compactDeadPercent dead. A request arriving mid-run makes it
  *                 stop after the batch it is on; it resumes the next idle window.
  *   - GET/PUT /v1/admin/limits to read and change those caps while running.
+ *   - BOXING      POST /v1/box/<name>?first=&second= and POST /v1/unbox/<name>
+ *                 combine two things under a new name and take one layer apart
+ *                 again. Plain POSTs, so a write key reaches them, not only admin.
  *
  * EVERY REQUEST NEEDS AN ACCESS KEY, except GET /healthz. Keys live in
  * <store>/access.keys as salted hashes (see access.hpp): a read key may GET and
@@ -60,6 +63,7 @@
 #include <vector>
 
 #include "access.hpp"
+#include "boxing.hpp"
 #include "bstd/store/log.hpp"
 #include "compact.hpp"
 #include "http/message.hpp"
@@ -152,6 +156,9 @@ class Supervise{
         std::span<const std::uint8_t> payload, VAR_TYPE type);
     swiftsearch::http::StoreResult<bool> DELETE(std::string_view key);
     swiftsearch::http::StoreResult<void> MOVE(std::string_view key);
+    swiftsearch::http::BoxResult BOX(std::string_view first, std::string_view second, std::string_view name);
+    swiftsearch::http::BoxResult UNBOX(std::string_view name);
+    swiftsearch::http::BoxError boxFailure(const swiftsearch::BoxError& e, std::string_view what);
 
     //a 401 or 403 when the request's key may not do what it asks, nullopt when it may
     std::optional<swiftsearch::http::Response> refuse(const swiftsearch::http::Request& req);

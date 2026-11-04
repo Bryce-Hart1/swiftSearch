@@ -14,6 +14,7 @@ namespace {
 constexpr std::string_view ALLOW_BLOBS = "GET, HEAD, PUT, DELETE";
 constexpr std::string_view ALLOW_BOXES = "GET, PUT";
 constexpr std::string_view ALLOW_PREPARE = "POST";
+constexpr std::string_view ALLOW_BOXING = "POST";
 
 /// Every way a URL can fail to be a key, mapped once. 414 is distinguished from
 /// 400 because "your key is too long" is actionable and "bad request" is not.
@@ -339,6 +340,60 @@ Response putBox(const Request& req, const StoreBinding& store, std::string_view 
     return r;
 }
 
+// --- box and unbox ---------------------------------------------------------
+
+/// A key given as a query parameter, held to the same rules as one in a path.
+/// The error names the parameter, because with three keys in one request "bad
+/// key" would not say which.
+std::expected<std::string, Response> keyParam(std::string_view query, std::string_view name) {
+    const auto raw = queryParam(query, name);
+    if (!raw) {
+        std::string msg = "missing ?";
+        msg.append(name);
+        return std::unexpected(Response::error(Status::BadRequest, msg));
+    }
+    auto key = keyFromEncoded(*raw);
+    if (!key) {
+        std::string msg = "bad ?";
+        msg.append(name).append(": ").append(describe(key.error()));
+        return std::unexpected(Response::error(statusForUrl(key.error()), msg));
+    }
+    return std::move(*key);
+}
+
+/// The JSON body of a successful box or unbox.
+std::string boxedJson(std::string_view name, const Boxed& b, bool withCreated) {
+    std::string out;
+    Json j(out);
+    j.obj().field("name", name).field("moved", b.moved);
+    if (withCreated) j.field("created", b.created);
+    j.endObj();
+    return out;
+}
+
+Response boxThings(const StoreBinding& store, std::string_view name, std::string_view query) {
+    if (!store.box) return notImplemented("box");
+
+    const auto first = keyParam(query, "first");
+    if (!first) return first.error();
+    const auto second = keyParam(query, "second");
+    if (!second) return second.error();
+
+    auto done = store.box(*first, *second, name);
+    if (!done) return Response::error(statusFor(done.error().status), done.error().message);
+    // 201 for a box that did not exist before, 200 when `name` was one of the
+    // two and the other went into it: the same split as a PUT that created.
+    return Response::json(done->created ? Status::Created : Status::Ok,
+                          boxedJson(name, *done, true));
+}
+
+Response unboxThings(const StoreBinding& store, std::string_view name) {
+    if (!store.unbox) return notImplemented("unbox");
+    auto done = store.unbox(name);
+    if (!done) return Response::error(statusFor(done.error().status), done.error().message);
+    return Response::json(Status::Ok, boxedJson(name, *done, false));
+}
+
 Response methodNotAllowed(std::string_view allow) {
     Response r = Response::error(Status::MethodNotAllowed, "method not allowed here");
     r.set("Allow", std::string(allow));
@@ -354,6 +409,8 @@ std::string_view describe(StoreStatus s) noexcept {
         case StoreStatus::Unsupported: return "stored record uses a feature this build lacks";
         case StoreStatus::Internal: return "internal store error";
         case StoreStatus::TooLarge: return "value is too large for this operation";
+        case StoreStatus::Conflict: return "a key it would write is already taken";
+        case StoreStatus::Invalid: return "those arguments make no sense together";
     }
     return "unknown";
 }
@@ -368,6 +425,8 @@ Status statusFor(StoreStatus s) noexcept {
         case StoreStatus::Unsupported: return Status::NotImplemented;
         case StoreStatus::Internal: return Status::InternalServerError;
         case StoreStatus::TooLarge: return Status::ContentTooLarge;
+        case StoreStatus::Conflict: return Status::Conflict;
+        case StoreStatus::Invalid: return Status::BadRequest;
     }
     return Status::InternalServerError;
 }
@@ -388,13 +447,17 @@ Response route(const Request& req, const StoreBinding& store,
     const bool isBlob = t.path.starts_with(BLOBS_PREFIX);
     const bool isBox = t.path.starts_with(BOXES_PREFIX);
     const bool isPrepare = t.path.starts_with(PREPARE_PREFIX);
-    if (!isBlob && !isBox && !isPrepare) {
+    const bool isBoxing = t.path.starts_with(BOX_PREFIX);
+    const bool isUnboxing = t.path.starts_with(UNBOX_PREFIX);
+    if (!isBlob && !isBox && !isPrepare && !isBoxing && !isUnboxing) {
         return Response::error(Status::NotFound, "no such route");
     }
 
-    const std::string_view prefix = isBlob ? BLOBS_PREFIX
-                                  : isBox  ? BOXES_PREFIX
-                                           : PREPARE_PREFIX;
+    const std::string_view prefix = isBlob     ? BLOBS_PREFIX
+                                  : isBox      ? BOXES_PREFIX
+                                  : isPrepare  ? PREPARE_PREFIX
+                                  : isBoxing   ? BOX_PREFIX
+                                               : UNBOX_PREFIX;
     auto key = keyFromPath(t.path, prefix);
     if (!key) {
         return Response::error(statusForUrl(key.error()), describe(key.error()));
@@ -403,6 +466,11 @@ Response route(const Request& req, const StoreBinding& store,
     if (isPrepare) {
         if (req.method != Method::Post) return methodNotAllowed(ALLOW_PREPARE);
         return prepareBlob(store, *key);
+    }
+
+    if (isBoxing || isUnboxing) {
+        if (req.method != Method::Post) return methodNotAllowed(ALLOW_BOXING);
+        return isBoxing ? boxThings(store, *key, t.query) : unboxThings(store, *key);
     }
 
     if (isBlob) {

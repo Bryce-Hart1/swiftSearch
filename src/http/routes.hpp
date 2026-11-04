@@ -15,7 +15,15 @@
  *   GET    /v1/boxes/<key>     JSON: box metadata plus one page of children
  *   PUT    /v1/boxes/<key>     box metadata, from headers
  *   POST   /v1/prepare/<key>   load the value into memory; 204, 404, or 413
+ *   POST   /v1/box/<name>      ?first=<key>&second=<key>: re-key both under
+ *                              <name>; 201 for a new box, 200 when <name> was
+ *                              one of them and the other was added into it
+ *   POST   /v1/unbox/<name>    dissolve one layer of the box <name>; 200
  *   GET    /healthz            liveness, for a supervisor
+ *
+ * box and unbox are plain POSTs, so a `write` key reaches them. Both answer
+ * 404 for a thing that is not there, 409 for a key that is taken and 400 for
+ * arguments that make no sense.
  */
 
 #include <cstddef>
@@ -28,6 +36,8 @@ namespace swiftsearch::http {
 inline constexpr std::string_view BLOBS_PREFIX = "/v1/blobs/";
 inline constexpr std::string_view BOXES_PREFIX = "/v1/boxes/";
 inline constexpr std::string_view PREPARE_PREFIX = "/v1/prepare/";
+inline constexpr std::string_view BOX_PREFIX = "/v1/box/";
+inline constexpr std::string_view UNBOX_PREFIX = "/v1/unbox/";
 inline constexpr std::string_view HEALTH_PATH = "/healthz";
 
 /// Header names, spelled once. A typo in one of these is a header silently

@@ -28,6 +28,10 @@ This file covers building it, starting it, and what the startup options mean.
 - **Compaction.** Overwritten and deleted values leave dead bytes behind. After the
   store has been idle for a while, a background thread rewrites the segments that
   are mostly dead and deletes the old files.
+- **Boxes.** A box is a folder of keys (`beach` is everything under `beach/`).
+  `POST /v1/box/<name>` combines two things under a new name and
+  `POST /v1/unbox/<name>` takes a layer off again. A `write` key is enough; neither
+  needs `--admin`. See [USE.md](USE.md#box-and-unbox).
 - **Access keys.** Every request except `GET /healthz` must carry an access key.
   The store keeps only a salted hash of each key, never the key itself.
 - **Salted hashes.** The hash of a value that the server sends back (`ETag`,
@@ -184,7 +188,7 @@ A key that isn't allowed to do what it asked gets `403`.
 | Access | Allows |
 |---|---|
 | `read` | `GET` and `HEAD` |
-| `write` (the default) | also `PUT`, `DELETE` and `POST /v1/prepare` |
+| `write` (the default) | also `PUT`, `DELETE`, `POST /v1/prepare`, and `POST /v1/box` and `/v1/unbox` |
 | `admin` | also `/v1/admin/limits`, when the server runs with `--admin` |
 
 ```bash

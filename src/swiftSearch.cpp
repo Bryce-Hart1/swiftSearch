@@ -1,4 +1,5 @@
 #include "bstd/store/serialize.hpp"
+#include "boxing.hpp"
 #include "bytes.hpp"
 #include "compact.hpp"
 #include "crc32c.hpp"
@@ -970,6 +971,164 @@ class SwiftSearch{
     }
 
 
+    /** @attention Boxing ------------------------------------------------ */
+
+    //one key to be re-keyed: its value is copied to `to`, then `from` is deleted
+    struct Relocation{
+        std::string from;
+        std::string to;
+    };
+
+    //bytes of records Box and Unbox build before one append and one fsync: the same batching compaction does
+    std::uint64_t copyBatchLimit() const{
+        return std::max<std::uint64_t>(1, std::min(COMPACT_BATCH_BYTES, _segment_limit / 4));
+    }
+
+    static std::unexpected<swiftsearch::BoxError> boxFail(const swiftsearch::BoxFailure kind, std::string message){
+        return std::unexpected(swiftsearch::BoxError{kind, std::move(message)});
+    }
+
+    //the whole record at `where`, CRCs checked, or nullopt when it will not read or is not `key`'s value
+    std::optional<swiftsearch::Envelope> envelopeAt(const std::string& key, const swiftsearch::DiskLocation& where){
+        const auto seg = segmentById(where.segment);
+        if(seg == nullptr){
+            return std::nullopt;
+        }
+        const auto raw = seg->readAt(where.offset, where.length);
+        if(!raw.has_value()){
+            return std::nullopt;
+        }
+        auto decoded = swiftsearch::decodeRecord(*raw);
+        if(!decoded.has_value() || decoded->envelope.isTombstone() || decoded->envelope.key() != key){
+            return std::nullopt;
+        }
+        return std::move(decoded->envelope);
+    }
+
+    //the keys that are `root` itself or inside it, in key order
+    std::vector<std::string> keysAtOrUnder(const std::string_view root) const{
+        auto found = _lookup.keysAtOrUnder(root);
+        std::sort(found.begin(), found.end());
+        return found;
+    }
+
+    //true when something in `found` is inside `root`, as opposed to `root` being a lone item
+    static bool hasChildren(const std::vector<std::string>& found, const std::string_view root){
+        return std::any_of(found.begin(), found.end(), [root](const std::string& key){
+            return swiftsearch::keys::is_within(key, root);
+        });
+    }
+
+    //caller holds _write_mtx. Appends a tombstone for each key and forgets it, a batch at a time with one
+    //fsync per batch. Keys already gone are skipped. A failure leaves the keys of later batches alone
+    Error eraseKeysLocked(const std::vector<std::string>& doomed){
+        const auto secs = secondsSinceStart();
+        if(!secs.has_value()){
+            return BAD("the store is more than 136 years past its start date");
+        }
+        const std::uint64_t batch_limit = copyBatchLimit();
+        std::size_t next = 0;
+        while(next < doomed.size()){
+            swiftsearch::Bytes out;
+            std::vector<std::pair<const std::string*, std::optional<swiftsearch::Entry>>> batch;
+            while(next < doomed.size() && out.size() < batch_limit){
+                const std::string& key = doomed[next++];
+                auto before = _lookup.lookup(key);
+                if(!before.has_value()){
+                    continue;
+                }
+                swiftsearch::Envelope::tombstone(key, *secs).encodeTo(out);
+                batch.emplace_back(&key, std::move(before));
+            }
+            if(batch.empty()){
+                continue;
+            }
+            const auto where = appendLocked(out);
+            if(!where.has_value()){
+                return BAD(where.error());
+            }
+            for(const auto& [key, before] : batch){
+                _lookup.erase(*key);
+                markReplaced(before);
+            }
+        }
+        return GOOD;
+    }
+
+    //caller holds _write_mtx. Writes each value under its new key, a batch at a time, and points the table
+    //at the copies. Header, type and timestamp are kept; only the key changes. The originals are not
+    //touched. `written` gets every new key that reached disk, so a failure can be undone
+    Error copyKeysLocked(const std::vector<Relocation>& moves, std::vector<std::string>& written){
+        struct Placed{
+            const std::string* key;
+            std::uint64_t at; //offset inside the batch
+            std::uint64_t length;
+            VAR_TYPE type;
+        };
+        const std::uint64_t batch_limit = copyBatchLimit();
+        std::size_t next = 0;
+        while(next < moves.size()){
+            swiftsearch::Bytes out;
+            std::vector<Placed> placed;
+            while(next < moves.size() && out.size() < batch_limit){
+                const Relocation& move = moves[next++];
+                const auto entry = _lookup.lookup(move.from);
+                if(!entry.has_value() || !entry->onDisk()){
+                    return BAD(move.from + " has no stored value to move");
+                }
+                const auto original = envelopeAt(move.from, *entry->disk);
+                if(!original.has_value()){
+                    return BAD("could not read " + move.from);
+                }
+                swiftsearch::RecordHeader header = original->header();
+                header.key_len = static_cast<std::uint32_t>(move.to.size());
+                const auto payload = original->payload();
+                const std::size_t start = out.size();
+                swiftsearch::Envelope::fromParts(header, move.to, swiftsearch::Bytes(payload.begin(), payload.end()))
+                    .encodeTo(out);
+                placed.push_back(Placed{&move.to, start, out.size() - start, entry->type});
+            }
+            const auto base = appendLocked(out);
+            if(!base.has_value()){
+                return BAD(base.error());
+            }
+            for(const auto& p : placed){
+                const swiftsearch::DiskLocation to{base->segment, base->offset + p.at, p.length};
+                if(const auto e = putInLookupTable(*p.key, to, p.type)){
+                    return e;
+                }
+                written.push_back(*p.key);
+            }
+        }
+        return GOOD;
+    }
+
+    //caller holds _write_mtx and has checked that every `to` is free and every key is valid.
+    //Copy first, delete second: a crash between them leaves a key under both names, never under neither
+    std::expected<std::size_t, swiftsearch::BoxError> relocateLocked(const std::vector<Relocation>& moves){
+        std::vector<std::string> written;
+        written.reserve(moves.size());
+        if(const auto e = copyKeysLocked(moves, written)){
+            //nothing was deleted yet, so putting the store back is deleting the copies
+            std::string message = "could not move the keys: " + *e;
+            if(const auto undo = eraseKeysLocked(written)){
+                message += " (and the copies already made could not be removed: " + *undo + ")";
+            }
+            return boxFail(swiftsearch::BoxFailure::Internal, std::move(message));
+        }
+        std::vector<std::string> originals;
+        originals.reserve(moves.size());
+        for(const auto& move : moves){
+            originals.push_back(move.from);
+        }
+        if(const auto e = eraseKeysLocked(originals)){
+            return boxFail(swiftsearch::BoxFailure::Internal,
+                "every key was copied but the originals could not all be removed, so some now exist under both names: " + *e);
+        }
+        return moves.size();
+    }
+
+
 
     public:
     /**
@@ -1077,6 +1236,160 @@ class SwiftSearch{
             return BAD(std::string("delete failed: ") + e.what());
         }
         return GOOD;
+    }
+
+
+    /**
+     * Combines two things under a new name. A thing is a key and everything under it
+     * (`x` and `x/...`), so each of `first` and `second` may be one item or a whole box.
+     * Every key in them moves under `name/`, unchanged otherwise, so a box inside either
+     * stays a box inside the new one:
+     *
+     *   Box("beach_videos", "beach_photo_231", "beach")
+     *     beach_videos/a.mp4  ->  beach/beach_videos/a.mp4
+     *     beach_photo_231     ->  beach/beach_photo_231
+     *
+     * `name` must be new. The one exception: it may be the name of `first` or `second`
+     * when that one is already a box, which adds the other into it (report.created is
+     * false) and moves nothing of the box itself.
+     *
+     * Refused, with nothing changed: a bad key; `first` and `second` the same or one inside
+     * the other; `name` inside either (Invalid). An operand with nothing stored (NotFound).
+     * `name`, or any key the move would create, already taken (Conflict).
+     *
+     * Values are copied to their new keys, then the old keys are deleted, a batch at a time
+     * with one fsync per batch, so a crash part way leaves some keys under both names and
+     * none under neither. If a copy fails, the copies already made are deleted again.
+     * Writers wait while this runs; readers do not. Costs a rewrite of every byte moved
+     * (compaction reclaims the old copies), and a scan of every key.
+     */
+    std::expected<swiftsearch::BoxReport, swiftsearch::BoxError> Box(const std::string_view first,
+        const std::string_view second, const std::string_view name){
+        using swiftsearch::BoxFailure;
+        noteActivity();
+        namespace sk = swiftsearch::keys;
+        const std::string a(first), b(second), n(name);
+        if(!sk::is_valid(a) || !sk::is_valid(b) || !sk::is_valid(n)){
+            return boxFail(BoxFailure::Invalid, "first, second and name must each be a valid key");
+        }
+        if(a == b || sk::is_within(a, b) || sk::is_within(b, a)){
+            return boxFail(BoxFailure::Invalid, "first and second must be two separate things, neither inside the other");
+        }
+        try{
+            std::lock_guard<std::mutex> lock(_write_mtx);
+            const auto a_keys = keysAtOrUnder(a);
+            const auto b_keys = keysAtOrUnder(b);
+            if(a_keys.empty()){
+                return boxFail(BoxFailure::NotFound, "nothing is stored at or under " + a);
+            }
+            if(b_keys.empty()){
+                return boxFail(BoxFailure::NotFound, "nothing is stored at or under " + b);
+            }
+
+            const bool into_a = n == a;
+            const bool into_b = n == b;
+            if(into_a || into_b){
+                //the name is one of the operands: it has to be a box for the other to go into
+                const std::string& box = into_a ? a : b;
+                if(!hasChildren(into_a ? a_keys : b_keys, box)){
+                    return boxFail(BoxFailure::Invalid, box + " is a single item, not a box, so another thing cannot be added to it: pick a new name");
+                }
+            }else{
+                if(sk::is_within(n, a) || sk::is_within(n, b)){
+                    return boxFail(BoxFailure::Invalid, "name cannot be inside first or second");
+                }
+                if(!_lookup.keysAtOrUnder(n).empty()){
+                    return boxFail(BoxFailure::Conflict, n + " already exists");
+                }
+            }
+
+            std::vector<Relocation> moves;
+            moves.reserve(a_keys.size() + b_keys.size());
+            const auto addMoves = [&moves, &n](const std::vector<std::string>& found){
+                for(const auto& key : found){
+                    moves.push_back(Relocation{key, n + std::string(1, sk::SEPARATOR) + key});
+                }
+            };
+            if(!into_a){
+                addMoves(a_keys);
+            }
+            if(!into_b){
+                addMoves(b_keys);
+            }
+            for(const auto& move : moves){
+                if(move.to.size() > swiftsearch::MAX_KEY_LEN){
+                    return boxFail(BoxFailure::Invalid, move.from + " would have a key past the size limit under " + n);
+                }
+                if(_lookup.contains(move.to)){
+                    return boxFail(BoxFailure::Conflict, move.to + " already exists");
+                }
+            }
+
+            const auto done = relocateLocked(moves);
+            if(!done.has_value()){
+                return std::unexpected(done.error());
+            }
+            return swiftsearch::BoxReport{*done, !(into_a || into_b)};
+        }catch(const std::exception& e){
+            return boxFail(BoxFailure::Internal, std::string("box failed: ") + e.what());
+        }
+    }
+
+    /**
+     * Dissolves the box `name`, one layer deep: every key under `name/` loses that prefix.
+     *
+     *   Unbox("beach")
+     *     beach/beach_videos/a.mp4  ->  beach_videos/a.mp4
+     *     beach/beach_photo_231     ->  beach_photo_231
+     *
+     * Afterwards `name` is gone, and whatever was inside is reachable under its own name;
+     * a box inside it is still a box. Any prefix with keys under it can be unboxed, not
+     * only one Box made. An item stored at `name` itself is not part of the box and stays.
+     *
+     * Refused, with nothing changed: a bad key; `name` an item with nothing under it
+     * (Invalid); nothing stored there at all (NotFound); a key it would restore is already
+     * taken, which includes a box that holds a layer of the same name (Conflict).
+     * Crash behaviour, locking and cost are those of Box.
+     */
+    std::expected<swiftsearch::BoxReport, swiftsearch::BoxError> Unbox(const std::string_view name){
+        using swiftsearch::BoxFailure;
+        noteActivity();
+        namespace sk = swiftsearch::keys;
+        const std::string n(name);
+        if(!sk::is_valid(n)){
+            return boxFail(BoxFailure::Invalid, "name must be a valid key");
+        }
+        try{
+            std::lock_guard<std::mutex> lock(_write_mtx);
+            std::vector<Relocation> moves;
+            for(const auto& key : _lookup.keysAtOrUnder(n)){
+                if(key != n){ //an item stored at `n` itself is not in the box
+                    moves.push_back(Relocation{key, key.substr(n.size() + 1)});
+                }
+            }
+            if(moves.empty()){
+                if(_lookup.contains(n)){
+                    return boxFail(BoxFailure::Invalid, n + " is a single item, not a box");
+                }
+                return boxFail(BoxFailure::NotFound, "no box named " + n);
+            }
+            std::sort(moves.begin(), moves.end(), [](const Relocation& l, const Relocation& r){
+                return l.from < r.from;
+            });
+            for(const auto& move : moves){
+                if(_lookup.contains(move.to)){
+                    return boxFail(BoxFailure::Conflict, move.to + " already exists");
+                }
+            }
+
+            const auto done = relocateLocked(moves);
+            if(!done.has_value()){
+                return std::unexpected(done.error());
+            }
+            return swiftsearch::BoxReport{*done, false};
+        }catch(const std::exception& e){
+            return boxFail(BoxFailure::Internal, std::string("unbox failed: ") + e.what());
+        }
     }
 
 

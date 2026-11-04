@@ -319,6 +319,8 @@ int serve(int argc, char** argv) {
     std::println("  GET/HEAD/PUT/DELETE /v1/blobs/<key>");
     std::println("  POST                /v1/prepare/<key>  (load into memory)");
     std::println("  GET/PUT             /v1/boxes/<key>    (501: no prefix scan yet)");
+    std::println("  POST                /v1/box/<name>     ?first=<key>&second=<key>  (combine under a new name)");
+    std::println("  POST                /v1/unbox/<name>   (dissolve one layer of a box)");
     std::println("  GET                 /healthz");
     if (supervisor->adminEnabled()) {
         std::println("  GET/PUT             {}", Supervise::ADMIN_LIMITS_PATH);
