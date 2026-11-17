@@ -2,6 +2,7 @@
 #include "boxing.hpp"
 #include "bytes.hpp"
 #include "compact.hpp"
+#include "compress.hpp"
 #include "crc32c.hpp"
 #include "find.hpp"
 #include "file_sync.hpp"
@@ -59,6 +60,11 @@
  * Overwritten and deleted values stay in their segment as dead bytes, counted per
  * segment in _dead, until compact() copies the live records forward and deletes
  * the old file. See compact() for why that is crash safe.
+ *
+ * Values are written uncompressed. compress() rewrites segments the same way
+ * compact() does, with each compressible payload turned into an LZ frame on the
+ * way (compress.hpp); reads decompress. The bytes still waiting for that are
+ * counted per segment in _raw.
  */
 class SwiftSearch{
 /** @attention all usings                        */
@@ -78,6 +84,8 @@ class SwiftSearch{
     static constexpr std::uint64_t COMPACT_BATCH_BYTES = 4ull * 1024ull * 1024ull;
     //a read that fails because compaction moved the record looks again, at most this many times
     static constexpr int READ_ATTEMPTS = 3;
+    //compress() rewrites a segment once at least this percent of its bytes are records it could compress
+    static constexpr std::uint64_t COMPRESS_MIN_RAW_PERCENT = 10;
 
 
     public:
@@ -304,7 +312,10 @@ class SwiftSearch{
     //what is worth compacting, rebuilt by replay. Tombstones are never counted, see compact()
     mutable std::mutex _usage_mtx;
     std::map<std::uint32_t, std::uint64_t> _dead;
-    std::mutex _compact_mtx; //one compaction at a time
+    //per segment, bytes of records compress() would still try (see worthCompressing). Like _dead it
+    //only goes up until the segment goes, so a record that died since still counts: a hint, not a total
+    std::map<std::uint32_t, std::uint64_t> _raw;
+    std::mutex _compact_mtx; //one compaction or compression at a time: both delete segments
 
     /** @brief ACTIVITY ---------------------------------------------- */
     //bumped by every public read and write, so a caller can tell how long the store has been idle
@@ -514,11 +525,20 @@ class SwiftSearch{
             //the same bookkeeping Put and Delete do, so the dead counts come back after a restart
             const auto& envelope = decoded->envelope;
             const auto before = _lookup.lookup(envelope.key());
+            const auto size = swiftsearch::storedValueSize(envelope.header(), envelope.payload());
             if(envelope.isTombstone()){
                 _lookup.erase(envelope.key());
                 markReplaced(before);
-            }else if(_lookup.putDisk(envelope.key(), here, envelope.header().var_type)){
+            }else if(!size.has_value()){
+                //the body CRC passed, so only a broken writer makes this: skip it like a damaged body
+                _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
+                    + ": compressed record with an unreadable frame header, skipped");
+                markDead(here);
+            }else if(_lookup.putDisk(envelope.key(), here, envelope.header().var_type, *size)){
                 markReplaced(before);
+                if(swiftsearch::worthCompressing(envelope.header())){
+                    markRaw(here);
+                }
             }else{
                 _warnings.push_back("segment " + std::to_string(seg.id()) + " offset " + std::to_string(at)
                     + ": record with an empty key, skipped");
@@ -569,6 +589,12 @@ class SwiftSearch{
         _dead[where.segment] += where.length;
     }
 
+    //a record compress() would try landed at `where`
+    void markRaw(const swiftsearch::DiskLocation& where){
+        std::lock_guard<std::mutex> lock(_usage_mtx);
+        _raw[where.segment] += where.length;
+    }
+
     //a write replaced or removed the entry a key had: its record is dead weight in its segment now
     void markReplaced(const std::optional<swiftsearch::Entry>& before){
         if(before.has_value() && before->onDisk()){
@@ -600,31 +626,48 @@ class SwiftSearch{
     struct Pending{
         std::string key;
         swiftsearch::DiskLocation from;
-        swiftsearch::Bytes raw; //the record exactly as it is on disk, timestamp and all
+        swiftsearch::Bytes raw; //the record to write: as it is on disk, or recompressed by compress()
         bool tombstone = false;
+        bool eligible = false; //worthCompressing: the copy counts toward _raw
     };
 
     enum class SegmentOutcome{ Removed, Kept, Stopped };
 
-    //Segments worth rewriting, oldest first: at least min_dead_percent of their bytes dead, or
-    //sealed and empty. When the active segment is one of them a new active segment is started, so
-    //the old one is sealed and nothing writes into it while it is being compacted
-    std::vector<std::shared_ptr<LockableFile>> compactionCandidates(const std::size_t min_dead_percent){
+    //what compress() hands compactSegment so each record it copies is recompressed on the way
+    struct Recompress{
+        int level;
+        swiftsearch::CompressReport& report;
+    };
+
+    //what a rewrite picks a segment by: its size, whether it is the active one, and its counters
+    struct SegmentUsage{
+        std::uint64_t size = 0;
+        bool active = false;
+        std::uint64_t dead = 0;
+        std::uint64_t raw = 0;
+    };
+
+    //Segments `wanted` picks, oldest first. When the active segment is one of them a new active
+    //segment is started, so the old one is sealed and nothing writes into it while it is rewritten
+    std::vector<std::shared_ptr<LockableFile>> rewriteCandidates(const std::function<bool(const SegmentUsage&)>& wanted){
         std::map<std::uint32_t, std::uint64_t> dead;
+        std::map<std::uint32_t, std::uint64_t> raw;
         {
             std::lock_guard<std::mutex> lock(_usage_mtx);
             dead = _dead;
+            raw = _raw;
         }
+        const auto count = [](const std::map<std::uint32_t, std::uint64_t>& m, const std::uint32_t id){
+            const auto itr = m.find(id);
+            return itr == m.end() ? std::uint64_t{0} : itr->second;
+        };
         std::vector<std::shared_ptr<LockableFile>> picked;
         std::shared_ptr<LockableFile> active;
         {
             std::shared_lock<std::shared_mutex> lock(_segments_mtx);
             active = _segments.rbegin()->second;
             for(const auto& [id, seg] : _segments){
-                const std::uint64_t size = seg->size();
-                const auto itr = dead.find(id);
-                const std::uint64_t dead_bytes = itr == dead.end() ? 0 : itr->second;
-                if(size == 0 ? seg != active : dead_bytes * 100 >= min_dead_percent * size){
+                if(wanted(SegmentUsage{seg->size(), seg == active, count(dead, id), count(raw, id)})){
                     picked.push_back(seg);
                 }
             }
@@ -641,6 +684,20 @@ class SwiftSearch{
             }
         }
         return picked;
+    }
+
+    //compaction's pick: at least min_dead_percent of the bytes dead, or sealed and empty
+    std::vector<std::shared_ptr<LockableFile>> compactionCandidates(const std::size_t min_dead_percent){
+        return rewriteCandidates([min_dead_percent](const SegmentUsage& u){
+            return u.size == 0 ? !u.active : u.dead * 100 >= min_dead_percent * u.size;
+        });
+    }
+
+    //compression's pick: at least COMPRESS_MIN_RAW_PERCENT of the bytes are records it would try
+    std::vector<std::shared_ptr<LockableFile>> compressionCandidates(){
+        return rewriteCandidates([](const SegmentUsage& u){
+            return u.size > 0 && u.raw > 0 && u.raw * 100 >= COMPRESS_MIN_RAW_PERCENT * u.size;
+        });
     }
 
     //compaction's read of one record: every CRC checked. The error is a sentence for the report
@@ -704,7 +761,14 @@ class SwiftSearch{
                 continue; //nothing in the table points at a tombstone
             }
             //the original is garbage from here on, which matters if this run stops before its segment goes
-            markDead(_lookup.relocate(p->key, p->from, to) ? p->from : to);
+            if(_lookup.relocate(p->key, p->from, to)){
+                markDead(p->from);
+                if(p->eligible){
+                    markRaw(to);
+                }
+            }else{
+                markDead(to);
+            }
         }
         report.bytesCopied += out.size();
         return GOOD;
@@ -720,6 +784,7 @@ class SwiftSearch{
         {
             std::lock_guard<std::mutex> lock(_usage_mtx);
             _dead.erase(seg->id());
+            _raw.erase(seg->id());
         }
         std::error_code ec;
         std::filesystem::remove(seg->path(), ec);
@@ -733,9 +798,11 @@ class SwiftSearch{
     }
 
     //Walks one sealed segment, copies what must survive forward a batch at a time, then deletes it.
-    //A record that will not read keeps the whole segment: compaction never deletes what it could not check
+    //A record that will not read keeps the whole segment: compaction never deletes what it could not check.
+    //With `recompress`, each record compression would try is recompressed on its way forward
     std::expected<SegmentOutcome, std::string> compactSegment(const std::shared_ptr<LockableFile>& seg,
-        const std::function<bool()>& stop, swiftsearch::CompactReport& report){
+        const std::function<bool()>& stop, swiftsearch::CompactReport& report,
+        const Recompress* recompress = nullptr){
         bool oldest = false;
         {
             std::shared_lock<std::shared_mutex> lock(_segments_mtx);
@@ -761,7 +828,12 @@ class SwiftSearch{
             at += raw.size();
             walked += raw.size();
             if(worthCopying(envelope, here, oldest)){
-                batch.push_back(Pending{envelope.key(), here, std::move(raw), envelope.isTombstone()});
+                bool eligible = swiftsearch::worthCompressing(envelope.header());
+                if(recompress != nullptr && eligible){
+                    raw = swiftsearch::recompressRecord(envelope, recompress->level, recompress->report);
+                    eligible = false; //compressed, or marked CompressTried: either way not tried again
+                }
+                batch.push_back(Pending{envelope.key(), here, std::move(raw), envelope.isTombstone(), eligible});
             }
             if(walked >= batch_limit){
                 if(const auto e = copyForward(batch, report)){
@@ -800,8 +872,11 @@ class SwiftSearch{
         if(envelope.isTombstone() || envelope.key() != key){
             return std::nullopt; //the table pointed at the wrong record
         }
-        const auto payload = envelope.payload();
-        return swiftsearch::Bytes(payload.begin(), payload.end());
+        auto value = swiftsearch::decompressPayload(envelope.header().compression, envelope.payload());
+        if(!value.has_value()){
+            return std::nullopt; //a frame that will not decompress reads like a damaged record
+        }
+        return std::move(*value);
     }
 
 
@@ -811,9 +886,10 @@ class SwiftSearch{
      * entry that points at bytes which never reached disk is a lie that a crash
      * exposes. See the CRASH BEHAVIOR note in find.hpp.
      */
-    Error putInLookupTable(const std::string& name, const swiftsearch::DiskLocation& where, const VAR_TYPE type){
+    Error putInLookupTable(const std::string& name, const swiftsearch::DiskLocation& where, const VAR_TYPE type,
+                           const std::uint64_t size){
         try{
-            if(!_lookup.putDisk(name, where, type)){
+            if(!_lookup.putDisk(name, where, type, size)){
                 return BAD("empty keys cannot be stored");
             }
         }catch(const std::exception& e){
@@ -853,13 +929,6 @@ class SwiftSearch{
         for(const auto& victim : victims){
             _lookup.evict(victim);
         }
-    }
-
-
-    //a record's payload size from its length in the table: whatever is not header, key or trailer
-    static std::uint64_t payloadSize(const std::size_t key_size, const swiftsearch::DiskLocation& where){
-        const std::uint64_t fixed = swiftsearch::RECORD_OVERHEAD + key_size;
-        return where.length > fixed ? where.length - fixed : 0;
     }
 
 
@@ -920,8 +989,8 @@ class SwiftSearch{
                 return BAD("key has no stored value");
             }
 
-            //the payload size is exact from the table, so an impossible request fails before any disk read
-            if(payloadSize(key.size(), *entry->disk) > _cache_budget.load()){
+            //the value's size is exact from the table, so an impossible request fails before any disk read
+            if(entry->size > _cache_budget.load()){
                 return BAD("value is larger than the memory budget");
             }
 
@@ -1064,6 +1133,8 @@ class SwiftSearch{
             std::uint64_t at; //offset inside the batch
             std::uint64_t length;
             VAR_TYPE type;
+            std::uint64_t size; //the value's, which a compressed record does not show
+            bool eligible;      //worthCompressing
         };
         const std::uint64_t batch_limit = copyBatchLimit();
         std::size_t next = 0;
@@ -1086,7 +1157,8 @@ class SwiftSearch{
                 const std::size_t start = out.size();
                 swiftsearch::Envelope::fromParts(header, move.to, swiftsearch::Bytes(payload.begin(), payload.end()))
                     .encodeTo(out);
-                placed.push_back(Placed{&move.to, start, out.size() - start, entry->type});
+                placed.push_back(Placed{&move.to, start, out.size() - start, entry->type, entry->size,
+                                        swiftsearch::worthCompressing(header)});
             }
             const auto base = appendLocked(out);
             if(!base.has_value()){
@@ -1094,8 +1166,11 @@ class SwiftSearch{
             }
             for(const auto& p : placed){
                 const swiftsearch::DiskLocation to{base->segment, base->offset + p.at, p.length};
-                if(const auto e = putInLookupTable(*p.key, to, p.type)){
+                if(const auto e = putInLookupTable(*p.key, to, p.type, p.size)){
                     return e;
+                }
+                if(p.eligible){
+                    markRaw(to);
                 }
                 written.push_back(*p.key);
             }
@@ -1190,7 +1265,10 @@ class SwiftSearch{
             if(!secs.has_value()){
                 return BAD("the store is more than 136 years past its start date");
             }
-            const auto record = swiftsearch::Envelope::value(name, std::move(_data), *secs, type).encode();
+            const std::uint64_t size = _data.size();
+            const auto envelope = swiftsearch::Envelope::value(name, std::move(_data), *secs, type);
+            const auto record = envelope.encode();
+            const bool compressible = swiftsearch::worthCompressing(envelope.header());
 
             std::lock_guard<std::mutex> lock(_write_mtx);
             const auto before = _lookup.lookup(name); //exact: every writer and every relocate holds this lock
@@ -1198,10 +1276,13 @@ class SwiftSearch{
             if(!where.has_value()){
                 return BAD(where.error());
             }
-            if(const auto e = putInLookupTable(name, *where, type)){
+            if(const auto e = putInLookupTable(name, *where, type, size)){
                 return e;
             }
             markReplaced(before);
+            if(compressible){
+                markRaw(*where);
+            }
             return GOOD;
         }catch(const std::length_error&){
             return BAD("key or value is over the size limit");
@@ -1523,7 +1604,7 @@ class SwiftSearch{
         if(!entry->onDisk()){
             return std::nullopt;
         }
-        return payloadSize(key.size(), *entry->disk);
+        return entry->size;
     }
 
 
@@ -1585,6 +1666,69 @@ class SwiftSearch{
         return report;
     }
 
+
+    /**
+     * Compresses stored values, losslessly, with swiftSearch's own LZ codec (compress.hpp).
+     *
+     * Rewrites every segment where at least COMPRESS_MIN_RAW_PERCENT of the bytes are records
+     * worth trying: plain STR, BIN or UNSET values of MIN_COMPRESS_BYTES or more, stored
+     * uncompressed and not tried before. It is compaction with one difference: each such
+     * record is re-encoded on its way forward, as an LZ frame when that saves at least
+     * MIN_SAVING_PERCENT, otherwise as it was with the CompressTried flag, so it is never tried
+     * again. Everything else in those segments is copied byte for byte, dead records are
+     * dropped, and the old files are deleted. `level` is 1 (fastest) to 9 (smallest).
+     *
+     * CRASH SAFETY, STOPPING and KEPT SEGMENTS are exactly compact()'s: see there. A reader
+     * racing the rewrite gets the same value from either copy.
+     *
+     * Errors: bad level, a compaction or compression already running, or a failed write.
+     */
+    std::expected<swiftsearch::CompressReport, std::string> compress(const int level,
+        const std::function<bool()>& should_stop = {}){
+        if(level < swiftsearch::MIN_COMPRESS_LEVEL || level > swiftsearch::MAX_COMPRESS_LEVEL){
+            return std::unexpected("compression level must be " + std::to_string(swiftsearch::MIN_COMPRESS_LEVEL)
+                + " to " + std::to_string(swiftsearch::MAX_COMPRESS_LEVEL));
+        }
+        std::unique_lock<std::mutex> running(_compact_mtx, std::try_to_lock);
+        if(!running.owns_lock()){
+            return std::unexpected("a compaction is already running");
+        }
+        const std::function<bool()> stop = [&should_stop]{ return should_stop && should_stop(); };
+
+        swiftsearch::CompressReport report;
+        const Recompress recompress{level, report};
+        try{
+            for(const auto& seg : compressionCandidates()){
+                if(stop()){
+                    report.rewrite.stopped = true;
+                    break;
+                }
+                const auto outcome = compactSegment(seg, stop, report.rewrite, &recompress);
+                if(!outcome.has_value()){
+                    return std::unexpected(outcome.error());
+                }
+                if(*outcome == SegmentOutcome::Stopped){
+                    report.rewrite.stopped = true;
+                    break;
+                }
+            }
+        }catch(const std::exception& e){
+            return std::unexpected(std::string("compression failed: ") + e.what());
+        }
+        return report;
+    }
+
+
+    /// Bytes of records compress() would still try, by its per-segment counter. Counts some that
+    /// died since they were written, until their segment is rewritten; 0 means there is nothing to do.
+    std::uint64_t rawBytes() const{
+        std::lock_guard<std::mutex> lock(_usage_mtx);
+        std::uint64_t sum = 0;
+        for(const auto& [id, raw] : _raw){
+            sum += raw;
+        }
+        return sum;
+    }
 
     /// Bytes of overwritten and deleted values still on disk: the counter compaction goes by.
     std::uint64_t deadBytes() const{

@@ -81,11 +81,14 @@ void usage() {
     println(cout, "                         0 = never (default: 10m)");
     println(cout, "      --compact-dead-percent N");
     println(cout, "                         rewrite segments at least this percent dead, 1-100 (default: 50)");
+    println(cout, "      --compress-idle T  compress stored values (lossless) after this long with no reads or");
+    println(cout, "                         writes, e.g. 90s, 10m, 1h; 0 = never (default: 10m)");
+    println(cout, "      --compress-level N effort, 1 = fastest to 9 = smallest (default: 3)");
     println(cout, "      --admin            serve GET/PUT /v1/admin/limits (off by default; loopback binds only)");
     println(cout, "  -h, --help             this text");
     println(cout, "");
     println(cout, "  With --admin the caps can be changed while running with PUT /v1/admin/limits,");
-    println(cout, "  e.g. ?mem=128M&cpu_threads=4&compact_idle=5m. Leave it off behind a reverse proxy");
+    println(cout, "  e.g. ?mem=128M&cpu_threads=4&compact_idle=5m&compress_level=6. Leave it off behind a reverse proxy");
     println(cout, "  on the same machine: the proxy reaches this server from loopback for every client.");
     println(cout, "");
     println(cout, "  Every request except GET /healthz needs a key: Authorization: Bearer <key>.");
@@ -267,6 +270,17 @@ int serve(int argc, char** argv) {
             opt.admin = true;
         } else if (a == "--compact-dead-percent") {
             if (!number("--compact-dead-percent", 100, opt.compactDeadPercent)) return EXIT_USAGE;
+        } else if (a == "--compress-idle") {
+            const auto idle = next(value) ? Supervise::parseDuration(value) : std::nullopt;
+            if (!idle) {
+                std::println(stderr, "--compress-idle needs a time such as 600, 90s, 10m or 1h");
+                return EXIT_USAGE;
+            }
+            opt.compressIdle = *idle;
+        } else if (a == "--compress-level") {
+            std::size_t level = 0;
+            if (!number("--compress-level", swiftsearch::MAX_COMPRESS_LEVEL, level)) return EXIT_USAGE;
+            opt.compressLevel = static_cast<int>(level);
         } else {
             std::println(stderr, "unknown option: {}", a);
             return EXIT_USAGE;
@@ -346,6 +360,11 @@ int serve(int argc, char** argv) {
     } else {
         std::println("compaction after {}s idle, on segments at least {}% dead",
                      caps.compactIdleSecs, caps.compactDeadPercent);
+    }
+    if (caps.compressIdleSecs == 0) {
+        std::println("automatic compression off");
+    } else {
+        std::println("compression after {}s idle, at level {}", caps.compressIdleSecs, caps.compressLevel);
     }
     std::println("ctrl-c to stop.");
 

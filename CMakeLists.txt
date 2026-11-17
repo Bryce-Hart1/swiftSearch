@@ -39,6 +39,7 @@ add_library(swiftSearch_core OBJECT
     src/sha256.cpp
     src/access.cpp
     src/record.cpp
+    src/compress.cpp
     src/box_meta.cpp
     src/http/url.cpp
     src/http/mime.cpp

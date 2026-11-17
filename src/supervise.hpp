@@ -17,6 +17,11 @@
  *                 background thread rewrites the segments that are at least
  *                 compactDeadPercent dead. A request arriving mid-run makes it
  *                 stop after the batch it is on; it resumes the next idle window.
+ *   - COMPRESSION once the store has done no reads or writes for compressIdle,
+ *                 the same thread rewrites the segments holding values not yet
+ *                 compressed, with swiftSearch's own lossless LZ codec at
+ *                 compressLevel (see compress.hpp). It runs after compaction in
+ *                 the same window and gives way to a request the same way.
  *   - GET/PUT /v1/admin/limits to read and change those caps while running.
  *   - BOXING      POST /v1/box/<name>?first=&second= and POST /v1/unbox/<name>
  *                 combine two things under a new name and take one layer apart
@@ -66,6 +71,7 @@
 #include "boxing.hpp"
 #include "bstd/store/log.hpp"
 #include "compact.hpp"
+#include "compress.hpp"
 #include "http/message.hpp"
 #include "http/server.hpp"
 #include "http/store_binding.hpp"
@@ -91,6 +97,10 @@ struct SupervisorOptions {
     std::chrono::seconds compactIdle{std::chrono::minutes(10)};
     /// A segment is rewritten once at least this percent of its bytes are dead. 1 to 100.
     std::size_t compactDeadPercent = 50;
+    /// Compression waits for this long with no reads or writes. 0 turns automatic compression off.
+    std::chrono::seconds compressIdle{std::chrono::minutes(10)};
+    /// LZ effort, 1 (fastest) to 9 (smallest).
+    int compressLevel = swiftsearch::DEFAULT_COMPRESS_LEVEL;
     /// Segment files roll over at this size. Fixed once the store is open.
     std::uint64_t segmentLimitBytes = 256ull * 1024ull * 1024ull;
     /// Serve GET/PUT /v1/admin/limits. Off by default, and ignored unless the bind
@@ -115,6 +125,8 @@ class Supervise{
         std::size_t cpuLow = 0;
         std::uint64_t compactIdleSecs = 0; //0 = automatic compaction off
         std::size_t compactDeadPercent = 0;
+        std::uint64_t compressIdleSecs = 0; //0 = automatic compression off
+        int compressLevel = 0;
     };
 
     static constexpr std::string_view ADMIN_LIMITS_PATH = "/v1/admin/limits";
@@ -145,6 +157,7 @@ class Supervise{
     std::thread _compactor;
     std::mutex _compact_run_mtx; //one compactIfIdle at a time; guards _compacted_at
     std::optional<std::uint64_t> _compacted_at; //activityCount() when the last run finished
+    std::optional<std::uint64_t> _compressed_at; //the same for compression; also under _compact_run_mtx
 
     //declared last so it is destroyed first: its threads call handle(), which uses everything above
     std::unique_ptr<swiftsearch::http::Server> _server;
@@ -174,6 +187,8 @@ class Supervise{
     //logs what a run did: each problem at HIGH, then what it removed, or why it stopped, at MED
     void noteCompaction(const swiftsearch::CompactReport& report, std::string_view what,
                         std::string_view stopped_because);
+    //the same for a compression run, plus what it saved
+    void noteCompression(const swiftsearch::CompressReport& report);
 
 
     public:
@@ -213,6 +228,9 @@ class Supervise{
     /// New compaction rule: run after `idle` with no reads or writes (0 = never, up to
     /// MAX_COMPACT_IDLE), on segments at least `deadPercent` dead (1 to 100).
     Error CAP_COMPACT(std::chrono::seconds idle, std::size_t deadPercent);
+    /// New compression rule: run after `idle` with no reads or writes (0 = never, up to
+    /// MAX_COMPACT_IDLE), at LZ `level` (MIN_COMPRESS_LEVEL to MAX_COMPRESS_LEVEL).
+    Error CAP_COMPRESS(std::chrono::seconds idle, int level);
 
     /**
      * Compacts the store if it is due, as of `now`. Due means compaction is on, the store
@@ -233,6 +251,16 @@ class Supervise{
      * If the idle compactor is mid-run, this waits for it to finish first.
      */
     std::expected<swiftsearch::CompactReport, std::string> compactAll();
+
+    /**
+     * Compresses the store if it is due, as of `now`. Due means compression is on, the store
+     * has had no reads or writes for its idle time, there are values it has not tried yet,
+     * and something has happened since the last run that finished. Stops for a request or
+     * stop() the way compactIfIdle does. Called by the compactor thread right after
+     * compactIfIdle; public so tests can hand in their own clock.
+     * @return what the run did, or nullopt if it was not due (or failed, which is logged).
+     */
+    std::optional<swiftsearch::CompressReport> compressIfIdle(std::chrono::steady_clock::time_point now);
 
     Limits limits() const;
     /// The most one MOVE may load right now, in bytes.

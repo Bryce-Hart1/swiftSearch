@@ -56,7 +56,8 @@ inline constexpr std::size_t HEADER_CRC_COVERAGE = F_HEADER_CRC.off;
 static_assert(HEADER_CRC_COVERAGE == 24);
 
 bool knownCompression(std::uint8_t v) noexcept {
-    return v == static_cast<std::uint8_t>(Compression::None);
+    return v == static_cast<std::uint8_t>(Compression::None) ||
+           v == static_cast<std::uint8_t>(Compression::Lz);
 }
 
 std::unexpected<DecodeError> err(DecodeStatus s, std::size_t at = 0,
@@ -116,6 +117,10 @@ std::expected<RecordHeader, DecodeError> parseHeader(
         return err(DecodeStatus::BadFlags, F_FLAGS.off);
     }
     if (!knownCompression(p[F_COMPRESSION.off])) {
+        return err(DecodeStatus::BadCompression, F_COMPRESSION.off);
+    }
+    // A tombstone has no payload, so there is nothing for a compression id to describe.
+    if (h.has(Flag::Tombstone) && h.compression != Compression::None) {
         return err(DecodeStatus::BadCompression, F_COMPRESSION.off);
     }
     if (h.has(Flag::Tombstone) && h.payload_len != 0) {
@@ -219,6 +224,9 @@ void Envelope::encodeTo(Bytes& out) const {
     }
     if (isTombstone() && !_payload.empty()) {
         throw std::length_error("Envelope::encodeTo: tombstone with a non-empty payload");
+    }
+    if (isTombstone() && _header.compression != Compression::None) {
+        throw std::length_error("Envelope::encodeTo: tombstone with a compression id");
     }
 
     const std::size_t base = out.size();

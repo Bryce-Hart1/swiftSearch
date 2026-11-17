@@ -8,8 +8,10 @@
  *   off  size  field
  *     0     4  magic         0x1A525353 -> on disk: 53 53 52 1A  ('S' 'S' 'R' 0x1A)
  *     4     1  version       RECORD_VERSION
- *     5     1  compression   Compression; unknown value is rejected
- *     6     1  flags         bit0 Tombstone, bit1 Box, bit2 Manifest
+ *     5     1  compression   Compression; unknown value is rejected. Says how the
+ *                            payload bytes are stored; a tombstone is always None
+ *     6     1  flags         bit0 Tombstone, bit1 Box, bit2 Manifest (critical),
+ *                            bit4 CompressTried (advisory)
  *     7     1  var_type      VAR_TYPE; unknown value is rejected
  *     8     4  key_len
  *    12     8  payload_len
@@ -23,6 +25,13 @@
  *           4  body_crc      CRC32C over (key ++ payload)
  *
  * Overhead is 32 bytes plus the key.
+ *
+ * COMPRESSION: payload_len and body_crc are about the payload AS STORED. With
+ * Compression::Lz the payload is an LZ frame (compress.hpp) that carries the
+ * value's real length and its own CRC; decodeRecord hands the frame back as is,
+ * so compaction and box/unbox can copy a compressed record byte for byte, and
+ * the store decompresses on read. A build that predates Lz refuses a store that
+ * holds one with BadCompression, a policy refusal, so it never truncates it.
  *
  * VERSION 2 replaced the 8 byte int64 `timestamp_ns` with the 4 byte offset
  * above, which shrinks every record by 4 bytes and the range from "to year 2262"
@@ -103,13 +112,17 @@ inline constexpr std::uint64_t MAX_PAYLOAD_LEN = 64ull * 1024ull * 1024ull;  // 
 
 enum class Compression : std::uint8_t {
     None = 0,
-    Zstd = 1,  // reserved; rejected until stage 3 implements it
+    Zstd = 1,  // reserved; rejected. The project writes its own codec instead
+    Lz = 2,    // swiftSearch's own LZ frame, see compress.hpp
 };
 
 enum class Flag : std::uint8_t {
     Tombstone = 1u << 0,  // delete marker; requires payload_len == 0
     Box = 1u << 1,        // this key is a container; payload is box metadata
     Manifest = 1u << 2,   // payload is a chunk list (stage: chunking)
+    // Advisory: background compression tried this record and it did not shrink
+    // enough to be worth it, so it is not tried again. A reader may ignore it.
+    CompressTried = 1u << 4,
 };
 
 // Bits 0-3 are critical: a reader that does not understand one cannot return the
@@ -275,6 +288,7 @@ struct Decoded {
  *      report bit rot, not BadVersion -- otherwise replay files it as "someone
  *      else's format", skips it, and the damaged key is never reported.
  *   4. version / reserved / flags / compression / tombstone-payload rules
+ *      (a tombstone must be Compression::None)
  *   5. length caps and total-size overflow, BEFORE any reserve or copy
  *   6. size < totalSize()                -> Truncated, with a trustworthy `needed`
  *   7. body_crc over (key ++ payload)    -> BodyCrcMismatch

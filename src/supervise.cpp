@@ -90,6 +90,9 @@ Supervise::Supervise(SupervisorOptions options, Logger& log):
     if(const auto e = CAP_COMPACT(options.compactIdle, options.compactDeadPercent)){
         throw std::invalid_argument(*e);
     }
+    if(const auto e = CAP_COMPRESS(options.compressIdle, options.compressLevel)){
+        throw std::invalid_argument(*e);
+    }
 
     //list and putBox stay unbound, so box routes answer 501 until SwiftSearch has a prefix scan
     _binding.get = [this](std::string_view key){ return GET(key); };
@@ -443,6 +446,30 @@ Supervise::Error Supervise::CAP_COMPACT(const std::chrono::seconds idle, const s
 }
 
 
+Supervise::Error Supervise::CAP_COMPRESS(const std::chrono::seconds idle, const int level){
+    if(idle < std::chrono::seconds::zero() || idle > MAX_COMPACT_IDLE){
+        return "compress idle must be 0 (off) to " + std::to_string(MAX_COMPACT_IDLE.count()) + " seconds";
+    }
+    if(level < swiftsearch::MIN_COMPRESS_LEVEL || level > swiftsearch::MAX_COMPRESS_LEVEL){
+        return "compress level must be " + std::to_string(swiftsearch::MIN_COMPRESS_LEVEL) + " to "
+            + std::to_string(swiftsearch::MAX_COMPRESS_LEVEL);
+    }
+    {
+        std::lock_guard<std::mutex> lock(_limits_mtx);
+        _limits.compressIdleSecs = static_cast<std::uint64_t>(idle.count());
+        _limits.compressLevel = level;
+    }
+    _compactor_cv.notify_all(); //a shorter idle time takes effect now, not after the wait already running
+    if(idle == std::chrono::seconds::zero()){
+        note("automatic compression off", Logger::MED);
+    }else{
+        note("compression set to run after " + std::to_string(idle.count()) + "s idle, at level "
+             + std::to_string(level), Logger::MED);
+    }
+    return std::nullopt;
+}
+
+
 /* COMPACTION ------------------------------------------------------------------------- */
 
 std::optional<swiftsearch::CompactReport> Supervise::compactIfIdle(const std::chrono::steady_clock::time_point now){
@@ -511,22 +538,79 @@ void Supervise::noteCompaction(const swiftsearch::CompactReport& report, const s
 }
 
 
+std::optional<swiftsearch::CompressReport> Supervise::compressIfIdle(const std::chrono::steady_clock::time_point now){
+    const Limits caps = limits();
+    if(caps.compressIdleSecs == 0){
+        return std::nullopt; //switched off
+    }
+    if(now - _main->lastActivity() < std::chrono::seconds(caps.compressIdleSecs)){
+        return std::nullopt; //not idle long enough
+    }
+    if(_main->rawBytes() == 0){
+        return std::nullopt; //every value is compressed, tried already, or not worth trying
+    }
+
+    std::lock_guard<std::mutex> lock(_compact_run_mtx);
+    const std::uint64_t since = _main->activityCount();
+    if(_compressed_at == since){
+        return std::nullopt; //the last run finished and nothing has happened since
+    }
+    const auto report = _main->compress(caps.compressLevel, [this, since]{
+        return _stopping.load() || _main->activityCount() != since;
+    });
+    if(!report.has_value()){
+        _compressed_at = since; //wait for new work before trying again
+        note("compression failed: " + report.error(), Logger::HIGH);
+        return std::nullopt;
+    }
+    noteCompression(*report);
+    if(!report->rewrite.stopped){
+        _compressed_at = since;
+    }
+    return *report;
+}
+
+
+void Supervise::noteCompression(const swiftsearch::CompressReport& report){
+    noteCompaction(report.rewrite, "compression", "for a request; the next idle window picks it up");
+    if(report.recordsCompressed + report.recordsLeftRaw > 0){
+        note("compression packed " + std::to_string(report.recordsCompressed) + " values ("
+             + std::to_string(report.payloadBytesIn) + " bytes in, " + std::to_string(report.payloadBytesOut)
+             + " out); " + std::to_string(report.recordsLeftRaw) + " did not shrink and stay as they are",
+             Logger::MED);
+    }
+}
+
+
 void Supervise::compactorLoop(){
     using namespace std::chrono_literals;
     std::unique_lock<std::mutex> lock(_compactor_mtx);
     while(!_compactor_stop){
-        //wake often enough to start within a quarter of the idle time of it coming due
-        const std::chrono::seconds idle(limits().compactIdleSecs);
+        //wake often enough to start within a quarter of the shorter idle time of it coming due
+        const Limits caps = limits();
+        std::chrono::seconds idle = 0s;
+        for(const std::uint64_t secs : {caps.compactIdleSecs, caps.compressIdleSecs}){
+            const std::chrono::seconds s(secs);
+            if(s != 0s && (idle == 0s || s < idle)){
+                idle = s;
+            }
+        }
         const auto every = idle == 0s ? 30s : std::clamp<std::chrono::seconds>(idle / 4, 1s, 30s);
         _compactor_cv.wait_for(lock, every);
         if(_compactor_stop){
             break;
         }
         lock.unlock();
+        //compaction first, so compression does not spend effort on values that are already dead
         try{
             (void)compactIfIdle(std::chrono::steady_clock::now());
         }catch(const std::exception& e){
             note(std::string("compaction failed: ") + e.what(), Logger::HIGH);
+        }
+        try{
+            (void)compressIfIdle(std::chrono::steady_clock::now());
+        }catch(const std::exception& e){
+            note(std::string("compression failed: ") + e.what(), Logger::HIGH);
         }
         lock.lock();
     }
@@ -578,10 +662,13 @@ http::Response Supervise::adminGet() const{
         .field("request_threads", u64(_request_threads))
         .field("keys", u64(_main->Size()))
         .field("dead_bytes", _main->deadBytes())
+        .field("raw_bytes", _main->rawBytes())
         .field("disk_bytes", _main->diskBytes())
         .field("segments", u64(_main->segmentCount()))
         .field("compact_idle", now.compactIdleSecs)
         .field("compact_dead_percent", u64(now.compactDeadPercent))
+        .field("compress_idle", now.compressIdleSecs)
+        .field("compress_level", u64(static_cast<std::size_t>(now.compressLevel)))
         .endObj();
     return http::Response::json(http::Status::Ok, std::move(out));
 }
@@ -589,7 +676,7 @@ http::Response Supervise::adminGet() const{
 
 http::Response Supervise::adminPut(const std::string_view query){
     constexpr std::string_view KNOWN[] = {"mem", "move_percent", "cpu_threads", "cpu_high", "cpu_low",
-                                          "compact_idle", "compact_dead_percent"};
+                                          "compact_idle", "compact_dead_percent", "compress_idle", "compress_level"};
     if(const auto bad = unknownParam(query, KNOWN)){
         return http::Response::error(http::Status::BadRequest, "unknown parameter: " + std::string(*bad));
     }
@@ -600,7 +687,8 @@ http::Response Supervise::adminPut(const std::string_view query){
     const auto high = numberParam(query, "cpu_high", false);
     const auto low = numberParam(query, "cpu_low", false);
     const auto dead = numberParam(query, "compact_dead_percent", false);
-    for(const auto* p : {&mem, &move, &threads, &high, &low, &dead}){
+    const auto level = numberParam(query, "compress_level", false);
+    for(const auto* p : {&mem, &move, &threads, &high, &low, &dead, &level}){
         if(!p->has_value()){
             return http::Response::error(http::Status::BadRequest, p->error());
         }
@@ -612,10 +700,17 @@ http::Response Supervise::adminPut(const std::string_view query){
             return http::Response::error(http::Status::BadRequest, "bad ?compact_idle");
         }
     }
-    if(!*mem && !*move && !*threads && !*high && !*low && !*dead && !idle){
+    std::optional<std::chrono::seconds> compress_idle;
+    if(const auto raw = http::queryParam(query, "compress_idle")){
+        compress_idle = parseDuration(*raw);
+        if(!compress_idle.has_value()){
+            return http::Response::error(http::Status::BadRequest, "bad ?compress_idle");
+        }
+    }
+    if(!*mem && !*move && !*threads && !*high && !*low && !*dead && !idle && !compress_idle && !*level){
         return http::Response::error(http::Status::BadRequest,
             "nothing to change: give ?mem=, ?move_percent=, ?cpu_threads=, ?cpu_high=, ?cpu_low=, "
-            "?compact_idle= or ?compact_dead_percent=");
+            "?compact_idle=, ?compact_dead_percent=, ?compress_idle= or ?compress_level=");
     }
 
     //everything is checked before anything is applied, so a bad request changes nothing.
@@ -644,6 +739,18 @@ http::Response Supervise::adminPut(const std::string_view query){
     if(next_dead == 0 || next_dead > 100){
         return http::Response::error(http::Status::BadRequest, "compact_dead_percent must be 1 to 100");
     }
+    const std::chrono::seconds next_compress_idle = compress_idle.value_or(std::chrono::seconds(now.compressIdleSecs));
+    const std::uint64_t next_level = level->value_or(static_cast<std::uint64_t>(now.compressLevel));
+    if(next_compress_idle > MAX_COMPACT_IDLE){
+        return http::Response::error(http::Status::BadRequest,
+            "compress_idle must be 0 (off) to " + std::to_string(MAX_COMPACT_IDLE.count()) + " seconds");
+    }
+    if(next_level < static_cast<std::uint64_t>(swiftsearch::MIN_COMPRESS_LEVEL)
+       || next_level > static_cast<std::uint64_t>(swiftsearch::MAX_COMPRESS_LEVEL)){
+        return http::Response::error(http::Status::BadRequest,
+            "compress_level must be " + std::to_string(swiftsearch::MIN_COMPRESS_LEVEL) + " to "
+            + std::to_string(swiftsearch::MAX_COMPRESS_LEVEL));
+    }
 
     //the pool swap is the one step that can still fail, so it goes first
     if(*threads || *high || *low){
@@ -663,6 +770,9 @@ http::Response Supervise::adminPut(const std::string_view query){
     }
     if(idle || *dead){
         (void)CAP_COMPACT(next_idle, static_cast<std::size_t>(next_dead)); //range checked above
+    }
+    if(compress_idle || *level){
+        (void)CAP_COMPRESS(next_compress_idle, static_cast<int>(next_level)); //range checked above
     }
     return adminGet();
 }

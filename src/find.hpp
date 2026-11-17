@@ -100,6 +100,9 @@ struct Entry {
     /// What the value was stored as. Kept here, not only in the record, so a value
     /// served from the cache still knows it is an image rather than raw bytes.
     VAR_TYPE type = VAR_TYPE::BIN;
+    /// The value's length as a client sees it, which is not the record's payload
+    /// length once the record is compressed. Lets a size check skip the disk.
+    std::uint64_t size = 0;
 
     bool inMemory() const noexcept { return memory != nullptr; }
     bool onDisk() const noexcept { return disk.has_value(); }
@@ -210,19 +213,21 @@ public:
         auto data = std::make_shared<const Bytes>(std::move(bytes));
 
         std::lock_guard w(_write);
-        publish(std::string(key), Entry{std::nullopt, std::move(data)});
+        const std::uint64_t size = data->size();
+        publish(std::string(key), Entry{std::nullopt, std::move(data), VAR_TYPE::BIN, size});
         return true;
     }
 
     /// Key whose value is already on disk and not cached, e.g. while rebuilding
-    /// the index from the segments at startup.
+    /// the index from the segments at startup. `size` is the value's length once
+    /// decompressed, not the record's.
     /// @return false for an empty key.
     bool putDisk(std::string_view key, const DiskLocation& where,
-                 const VAR_TYPE type = VAR_TYPE::BIN){
+                 const VAR_TYPE type, const std::uint64_t size){
         if(key.empty()) return false;
 
         std::lock_guard w(_write);
-        publish(std::string(key), Entry{where, nullptr, type});
+        publish(std::string(key), Entry{where, nullptr, type, size});
         return true;
     }
 
@@ -266,6 +271,8 @@ public:
 
     /// Compaction moved a record. Swap in `to` only if the entry still points at
     /// `from`; otherwise a newer write won and the compactor skips this record.
+    /// The copy may be compressed where the original was not; the value, its type
+    /// and its size are the same, so only the location changes.
     /// @return false if the entry no longer points at `from`.
     bool relocate(std::string_view key,
                   const DiskLocation& from,
